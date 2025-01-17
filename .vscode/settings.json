@@ -1,0 +1,9 @@
+{
+    "editor.fontSize": 13,
+    "[typescript]": {
+        "editor.formatOnSave": true
+    },
+    "[javascript]": {
+        "editor.formatOnSave": true
+    }
+}
