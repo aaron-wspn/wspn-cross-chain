@@ -15,6 +15,7 @@ artifacts
 
 # foundry test compilation files
 out
+lcov.info
 
 # pnpm
 pnpm-error.log
