@@ -47,7 +47,7 @@ contract MyOFTAdapterTest is TestHelperOz5 {
         super.setUp();
         setUpEndpoints(2, LibraryType.UltraLightNode);
 
-        aToken = ERC20Mock(_deployOApp(type(ERC20Mock).creationCode, abi.encode("Token", "TOKEN")));
+        aToken = ERC20Mock(_deployOApp(type(ERC20Mock).creationCode, abi.encode("Token", "TOKEN", uint8(18))));
 
         aOFTAdapter = OFTAdapterMock(
             _deployOApp(
