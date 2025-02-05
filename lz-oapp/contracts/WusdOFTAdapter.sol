@@ -38,7 +38,9 @@ import { PauseCapable } from "./modules/PauseCapable.sol";
 import { SalvageCapable } from "./modules/SalvageCapable.sol";
 import { LibErrors } from "./library/LibErrors.sol";
 import { LibRoles } from "./library/LibRoles.sol";
-import "forge-std/console.sol";
+
+// import "forge-std/console.sol";
+// import { console } from "hardhat/console.sol";
 
 /**
  * @title OFTAdapter Contract
@@ -71,6 +73,12 @@ contract WusdOFTAdapter is
     bytes32 public constant SEND_AUTHORIZATION_TYPEHASH =
         keccak256(
             "OFTSendAuthorization(address owner,address spender,uint256 value,uint256 permitNonce,uint256 deadline,SendParam sendParams,uint256 nonce)SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
+        );
+
+    // Add a constant for the SendParam type hash
+    bytes32 public constant SEND_PARAM_TYPEHASH =
+        keccak256(
+            "SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
         );
 
     // Roles
@@ -297,8 +305,19 @@ contract WusdOFTAdapter is
     ) external payable virtual override returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
         // Check deadline
         require(block.timestamp <= authorization.deadline, "WusdOFTAdapter: expired deadline");
-
-        // Verify authorization signature
+        // Create EIP-712 struct hash
+        bytes32 sendParamsHash = keccak256(
+            abi.encode(
+                SEND_PARAM_TYPEHASH,
+                authorization.sendParams.dstEid,
+                authorization.sendParams.to,
+                authorization.sendParams.amountLD,
+                authorization.sendParams.minAmountLD,
+                keccak256(authorization.sendParams.extraOptions),
+                keccak256(authorization.sendParams.composeMsg),
+                keccak256(authorization.sendParams.oftCmd)
+            )
+        ); // First hash the nested SendParam struct
         bytes32 structHash = keccak256(
             abi.encode(
                 SEND_AUTHORIZATION_TYPEHASH,
@@ -307,17 +326,7 @@ contract WusdOFTAdapter is
                 authorization.value,
                 authorization.permitNonce,
                 authorization.deadline,
-                keccak256(
-                    abi.encode(
-                        authorization.sendParams.dstEid,
-                        authorization.sendParams.to,
-                        authorization.sendParams.amountLD,
-                        authorization.sendParams.minAmountLD,
-                        keccak256(authorization.sendParams.extraOptions),
-                        keccak256(authorization.sendParams.composeMsg),
-                        keccak256(authorization.sendParams.oftCmd)
-                    )
-                ),
+                sendParamsHash,
                 _useNonce(authorization.owner)
             )
         );
