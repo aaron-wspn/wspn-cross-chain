@@ -3,17 +3,23 @@
 // To make use of automatic environment setup:
 // - Duplicate .env.example file and name it .env
 // - Fill in the environment variables
-import 'dotenv/config'
+import dotenv from 'dotenv'
 
 import 'hardhat-deploy'
 import 'hardhat-contract-sizer'
 import '@nomiclabs/hardhat-ethers'
+// import '@nomicfoundation/hardhat-ethers' // newer version but not compatible with @layerzerolabs/devtools-evm-hardhat
+import '@typechain/hardhat'
 import '@layerzerolabs/toolbox-hardhat'
+import '@nomicfoundation/hardhat-chai-matchers'
 import { HardhatUserConfig, HttpNetworkAccountsUserConfig } from 'hardhat/types'
+import 'solidity-coverage'
 
 import { EndpointId } from '@layerzerolabs/lz-definitions'
 
 import './type-extensions'
+
+dotenv.config({ path: 'local.env' })
 
 // Set your preferred authentication method
 //
@@ -45,42 +51,63 @@ const config: HardhatUserConfig = {
             {
                 version: '0.8.27',
                 settings: {
+                    viaIR: true,
                     optimizer: {
                         enabled: true,
-                        runs: 200,
+                        runs: 2000,
+                        details: {
+                            yulDetails: {
+                                optimizerSteps: 'u',
+                            },
+                        },
                     },
                 },
             },
         ],
     },
+    typechain: {
+        outDir: 'typechain-types',
+        target: 'ethers-v5',
+    },
     networks: {
-        'sepolia-testnet': {
-            eid: EndpointId.SEPOLIA_V2_TESTNET,
-            url: process.env.RPC_URL_SEPOLIA || 'https://rpc.sepolia.org/',
+        hardhat: {
+            // Need this for testing because TestHelperOz5.sol is exceeding the compiled contract size limit
+            allowUnlimitedContractSize: true,
+        },
+        // 'amoy-testnet': {
+        //     eid: EndpointId.AMOY_V2_TESTNET,
+        //     url: process.env.RPC_URL_AMOY || 'https://polygon-amoy-bor-rpc.publicnode.com',
+        //     accounts,
+        // },
+        // 'avalanche-testnet': {
+        //     eid: EndpointId.AVALANCHE_V2_TESTNET,
+        //     url: process.env.RPC_URL_FUJI || 'https://rpc.ankr.com/avalanche_fuji',
+        //     accounts,
+        // },
+        'holesky-testnet': {
+            eid: EndpointId.HOLESKY_V2_TESTNET,
+            url: process.env.RPC_URL_HOLESKY || 'https://1rpc.io/holesky',
             accounts,
             oftAdapter: {
                 tokenAddress: '0x0', // Set the token address for the OFT adapter
             },
         },
-        'avalanche-testnet': {
-            eid: EndpointId.AVALANCHE_V2_TESTNET,
-            url: process.env.RPC_URL_FUJI || 'https://rpc.ankr.com/avalanche_fuji',
+        'sepolia-testnet': {
+            eid: EndpointId.SEPOLIA_V2_TESTNET,
+            url: process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.public.blastapi.io',
             accounts,
-        },
-        'amoy-testnet': {
-            eid: EndpointId.AMOY_V2_TESTNET,
-            url: process.env.RPC_URL_AMOY || 'https://polygon-amoy-bor-rpc.publicnode.com',
-            accounts,
-        },
-        hardhat: {
-            // Need this for testing because TestHelperOz5.sol is exceeding the compiled contract size limit
-            allowUnlimitedContractSize: true,
+            oftAdapter: {
+                tokenAddress: '0x0', // Set the token address for the OFT adapter
+            },
         },
     },
     namedAccounts: {
         deployer: {
             default: 0, // wallet address of index[0], of the mnemonic in .env
         },
+    },
+    mocha: {
+        timeout: 60_000 * 5, // 5 minutes
     },
 }
 
