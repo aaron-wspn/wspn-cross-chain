@@ -15,8 +15,8 @@ import { SendParam, MessagingFee } from "@layerzerolabs/oft-evm/contracts/interf
 import "../../contracts/interfaces/IERC20F.sol";
 import { IWusdOFTAdapter } from "../../contracts/interfaces/IWusdOFTAdapter.sol";
 import "../../contracts/WusdOFTAdapter.sol";
+import "../../contracts/mocks/AccessRegistryMock.sol";
 import "../mocks/ERC20Mock.sol";
-import "../mocks/AccessRegistryMock.sol";
 
 // Build permit signature
 bytes32 constant PERMIT_TYPEHASH = keccak256(
@@ -32,7 +32,7 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
     WusdOFTAdapter public aOFTAdapter;
     WusdOFTAdapter public bOFTAdapter;
     AccessRegistryMock public accessRegistryOAppA;
-    
+
     uint32 private aEid = 1;
     uint32 private bEid = 2;
 
@@ -48,6 +48,7 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
     address public unauthorizedUser = makeAddr("unauthorizedUser");
 
     uint256 internal initialBalance0Decimals = 1000;
+
     function setUp() public virtual override {
         (userA, userAPrivateKey) = makeAddrAndKey("userA");
         vm.deal(userA, 100 ether);
@@ -154,49 +155,44 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         uint256 value,
         uint256 deadline
     ) internal view returns (uint8 v, bytes32 r, bytes32 s) {
-        bytes32 permitHash = keccak256(abi.encode(
-            PERMIT_TYPEHASH,
-            owner,
-            spender,
-            value,
-            aToken.nonces(owner),
-            deadline
-        ));
-        bytes32 permit712Digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            aToken.DOMAIN_SEPARATOR(),
-            permitHash
-        ));
+        bytes32 permitHash = keccak256(
+            abi.encode(PERMIT_TYPEHASH, owner, spender, value, aToken.nonces(owner), deadline)
+        );
+        bytes32 permit712Digest = keccak256(abi.encodePacked("\x19\x01", aToken.DOMAIN_SEPARATOR(), permitHash));
         return vm.sign(userAPrivateKey, permit712Digest);
     }
 
     function _createAuthorizationSignature(
         IWusdOFTAdapter.OFTSendAuthorization memory authorization
     ) internal view returns (uint8 v, bytes32 r, bytes32 s) {
-        bytes32 sendParamsHash = keccak256(abi.encode(
-            authorization.sendParams.dstEid,
-            authorization.sendParams.to,
-            authorization.sendParams.amountLD,
-            authorization.sendParams.minAmountLD,
-            keccak256(authorization.sendParams.extraOptions),
-            keccak256(authorization.sendParams.composeMsg),
-            keccak256(authorization.sendParams.oftCmd)
-        )); // We hash the SendParam struct first
-         bytes32 sendAuthorizationHash = keccak256(abi.encode(
-            aOFTAdapter.SEND_AUTHORIZATION_TYPEHASH(),
-            authorization.owner,
-            authorization.spender,
-            authorization.value,
-            authorization.permitNonce,
-            authorization.deadline,
-            sendParamsHash,
-            authorization.nonce
-        ));
-        bytes32 authorization712Digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            aOFTAdapter.DOMAIN_SEPARATOR(),
-            sendAuthorizationHash
-        ));
+        // Hash the SendParam struct first
+        bytes32 sendParamsStructHash = keccak256(
+            abi.encode(
+                aOFTAdapter.SEND_PARAM_TYPEHASH(),
+                authorization.sendParams.dstEid,
+                authorization.sendParams.to,
+                authorization.sendParams.amountLD,
+                authorization.sendParams.minAmountLD,
+                keccak256(authorization.sendParams.extraOptions),
+                keccak256(authorization.sendParams.composeMsg),
+                keccak256(authorization.sendParams.oftCmd)
+            )
+        ); // We hash the SendParam struct first
+        bytes32 sendAuthorizationHash = keccak256(
+            abi.encode(
+                aOFTAdapter.SEND_AUTHORIZATION_TYPEHASH(),
+                authorization.owner,
+                authorization.spender,
+                authorization.value,
+                authorization.permitNonce,
+                authorization.deadline,
+                sendParamsStructHash,
+                authorization.nonce
+            )
+        );
+        bytes32 authorization712Digest = keccak256(
+            abi.encodePacked("\x19\x01", aOFTAdapter.DOMAIN_SEPARATOR(), sendAuthorizationHash)
+        );
         return vm.sign(userAPrivateKey, authorization712Digest);
     }
 

@@ -9,8 +9,8 @@ import { LibErrors } from "../../contracts/library/LibErrors.sol";
 import { LibRoles } from "../../contracts/library/LibRoles.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import "../../contracts/WusdOFTAdapter.sol";
+import "../../contracts/mocks/AccessRegistryMock.sol";
 import "../mocks/ERC20Mock.sol";
-import "../mocks/AccessRegistryMock.sol";
 
 contract WusdOFTAdapterAccessRegistrySubscriptionCapableTest is TestHelperOz5 {
     WusdOFTAdapter public adapter;
