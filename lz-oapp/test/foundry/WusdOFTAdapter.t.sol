@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/access/IAccessControl.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { TestHelperOz5, EndpointV2 } from "@layerzerolabs/test-devtools-evm-foundry/contracts/TestHelperOz5.sol";
 
 // OApp imports
@@ -11,12 +11,12 @@ import { IOAppOptionsType3, EnforcedOptionParam } from "@layerzerolabs/oapp-evm/
 import { OptionsBuilder } from "@layerzerolabs/oapp-evm/contracts/oapp/libs/OptionsBuilder.sol";
 
 import { LibErrors } from "../../contracts/library/LibErrors.sol";
-import { SendParam, MessagingFee } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
+import { IOFT, SendParam, MessagingFee } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import "../../contracts/interfaces/IERC20F.sol";
 import { IWusdOFTAdapter } from "../../contracts/interfaces/IWusdOFTAdapter.sol";
 import "../../contracts/WusdOFTAdapter.sol";
 import "../../contracts/mocks/AccessRegistryMock.sol";
-import "../mocks/ERC20Mock.sol";
+import { ERC20Mock, IERC20Errors } from "../mocks/ERC20Mock.sol";
 
 // Build permit signature
 bytes32 constant PERMIT_TYPEHASH = keccak256(
@@ -114,7 +114,11 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
     }
 
     function test_sendTokensToSelfUserA() public {
-        vm.skip(true);
+        // set adapter access registry on OFT Adapter A
+        vm.prank(contractAdmin);
+        aOFTAdapter.accessRegistryUpdate(address(accessRegistryOAppA));
+        // grant access to the userA
+        accessRegistryOAppA.setAccess(userA, true);
         uint256 initialBalance = aToken.balanceOf(userA);
         uint256 tokensToSend = 580 * 10 ** aTokenDecimals;
         uint256 decimalConversionRate = 10 ** (aTokenDecimals - bTokenDecimals);
@@ -147,6 +151,183 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         assertEq(aToken.balanceOf(userA), initialBalance - tokensToSend);
         assertEq(aToken.balanceOf(address(aOFTAdapter)), 0); // tokens burned on source chain
         assertEq(bToken.balanceOf(userA), tokensToReceive);
+    }
+
+    function test_sendTokensToSelfAccessRegistryFree() public {
+        // deny access to the userA (but don't link the access registry to the OFT Adapter)
+        accessRegistryOAppA.setAccess(userA, false);
+        uint256 initialBalance = aToken.balanceOf(userA);
+        uint256 tokensToSend = 580 * 10 ** aTokenDecimals;
+        uint256 decimalConversionRate = 10 ** (aTokenDecimals - bTokenDecimals);
+        uint256 tokensToReceive = tokensToSend / decimalConversionRate;
+        assertTrue(initialBalance >= tokensToSend); // test validity check
+        assertEq(address(aOFTAdapter.accessRegistry()), address(0)); // no access registry linked to the OFT Adapter
+        assertFalse(accessRegistryOAppA.hasAccess(userA, address(0), "0x")); // userA is denied access in the access registry
+
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(300000, 0);
+        SendParam memory sendParam = SendParam(
+            bEid,
+            addressToBytes32(userA),
+            tokensToSend,
+            tokensToSend,
+            options,
+            "",
+            ""
+        );
+        MessagingFee memory fee = aOFTAdapter.quoteSend(sendParam, false);
+
+        assertEq(aToken.balanceOf(userA), initialBalance);
+        assertEq(aToken.balanceOf(address(aOFTAdapter)), 0);
+        assertEq(bToken.balanceOf(userA), 0);
+
+        vm.prank(userA);
+        aToken.approve(address(aOFTAdapter), tokensToSend);
+
+        vm.prank(userA);
+        aOFTAdapter.send{ value: fee.nativeFee }(sendParam, fee, userA);
+        verifyPackets(bEid, addressToBytes32(address(bOFTAdapter)));
+
+        assertEq(aToken.balanceOf(userA), initialBalance - tokensToSend); // tokens sent
+        assertEq(bToken.balanceOf(userA), tokensToReceive); // tokens received
+    }
+
+    function test_RevertWhen_SendCallerNotInAllowlist() public {
+        // set adapter access registry on OFT Adapter A
+        vm.prank(contractAdmin);
+        aOFTAdapter.accessRegistryUpdate(address(accessRegistryOAppA));
+        // deny access to the unauthorized user (even though the default response is false)
+        accessRegistryOAppA.setAccess(unauthorizedUser, false);
+        uint256 initialBalance = aToken.balanceOf(userA);
+        // give half of the tokens to the unauthorized user
+        uint256 tokensToSend = initialBalance / 2;
+        vm.prank(userA);
+        aToken.transfer(unauthorizedUser, tokensToSend);
+        // create send param
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(300000, 0);
+        SendParam memory sendParam = SendParam(
+            bEid,
+            addressToBytes32(unauthorizedUser),
+            tokensToSend,
+            tokensToSend,
+            options,
+            "",
+            ""
+        );
+        MessagingFee memory fee = aOFTAdapter.quoteSend(sendParam, false);
+        vm.prank(unauthorizedUser);
+        vm.expectRevert(abi.encodeWithSelector(LibErrors.AccountUnauthorized.selector, unauthorizedUser));
+        aOFTAdapter.send{ value: fee.nativeFee }(sendParam, fee, userA);
+    }
+
+    function test_RevertIf_SendWhilePaused() public {
+        uint256 tokensToSend = 580 * 10 ** aTokenDecimals;
+        vm.prank(pauser);
+        aOFTAdapter.pause();
+
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(300000, 0);
+        SendParam memory sendParam = SendParam(
+            bEid,
+            addressToBytes32(userA),
+            tokensToSend,
+            tokensToSend,
+            options,
+            "",
+            ""
+        );
+        MessagingFee memory fee = aOFTAdapter.quoteSend(sendParam, false);
+        vm.startPrank(userA);
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
+        aOFTAdapter.send(sendParam, fee, userA);
+        vm.stopPrank();
+    }
+
+    // NOTE: This should be part of the Documentation, noting that such small amounts are not supported.
+    function test_RevertWhen_SendDustAmount() public {
+        uint256 initialBalance = aToken.balanceOf(userA);
+        uint256 tokensThatCanBeSent = 1 * 10 ** (aTokenDecimals); // 1 token with decimals
+        uint256 tokensThatCannotBeSent = 999_999; // mantissa (sharedDecimals = 6). `sharedDecimals` is
+        // the minimum precision of the OFT Adapter.
+        uint256 tokensToSend = tokensThatCanBeSent + tokensThatCannotBeSent;
+        // example:
+        // uint version for token with 12 decimals - 1 token = 10^12
+        // 1_000_000_000_000
+        //  {               }    <--- aTokenDecimals
+        // 1_000_000_000_000
+        //  {       }    <--- sharedDecimals
+        // 1_000_000_000_000
+        //          {       }            <--- aTokenDecimals **only** i.e. tokens that can't be sent without precision loss
+        assertTrue(initialBalance > tokensToSend); // test validity check
+
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(300000, 0);
+        SendParam memory sendParam = SendParam(
+            bEid,
+            addressToBytes32(userA),
+            tokensToSend,
+            tokensToSend,
+            options,
+            "",
+            ""
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IOFT.SlippageExceeded.selector, tokensThatCanBeSent, tokensToSend) // SlippageExceeded(amountReceivedLD, _minAmountLD);
+        );
+        MessagingFee memory fee = aOFTAdapter.quoteSend(sendParam, false);
+        // NOTE: SlippageExceeded is experienced on both quoteSend and send
+        fee = MessagingFee({
+            nativeFee: 1 ether, // NOTE: This is not the actual fee. This is just a placeholder,
+            //       as the above assignment is expected to revert
+            lzTokenFee: 0
+        });
+
+        vm.startPrank(userA);
+        aToken.approve(address(aOFTAdapter), tokensToSend);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IOFT.SlippageExceeded.selector, tokensThatCanBeSent, tokensToSend) // SlippageExceeded(amountReceivedLD, _minAmountLD);
+        );
+        aOFTAdapter.send(sendParam, fee, userA);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_SendInsufficientBalance() public {
+        uint256 initialBalance = aToken.balanceOf(userA);
+        uint256 tokensToSend = initialBalance * 2;
+        assertTrue(initialBalance < tokensToSend); // test validity check
+
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(300000, 0);
+        SendParam memory sendParam = SendParam(
+            bEid,
+            addressToBytes32(userA),
+            tokensToSend,
+            tokensToSend,
+            options,
+            "",
+            ""
+        );
+        MessagingFee memory fee = aOFTAdapter.quoteSend(sendParam, false);
+        // couple more initial assertions
+        assertEq(aToken.balanceOf(userA), initialBalance);
+        assertEq(aToken.balanceOf(address(aOFTAdapter)), 0);
+        assertEq(bToken.balanceOf(userA), 0);
+
+        vm.startPrank(userA);
+        aToken.approve(address(aOFTAdapter), tokensToSend);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientBalance.selector,
+                address(userA),
+                initialBalance,
+                tokensToSend
+            )
+        );
+        aOFTAdapter.send(sendParam, fee, userA);
+        vm.stopPrank();
+
+        assertEq(aToken.balanceOf(userA), initialBalance);
+        assertEq(aToken.balanceOf(address(aOFTAdapter)), 0); // no tokens sent
+        assertEq(bToken.balanceOf(userA), 0); // no tokens received
     }
 
     function _createPermitSignature(

@@ -187,20 +187,4 @@ contract WusdOFTAdapterAccessRegistrySubscriptionCapableTest is TestHelperOz5 {
         vm.expectRevert(); // Expect revert due to missing parameters, not due to access
         adapter.send(SendParam(0, bytes32(0), 0, 0, "", "", ""), MessagingFee(0, 0), address(0));
     }
-
-    function test_RevertWhen_UnauthorizedAccess() public {
-        // Setup access registry
-        vm.startPrank(admin);
-        adapter.accessRegistryUpdate(address(accessRegistry));
-        vm.stopPrank();
-
-        // Setup mock response to deny access
-        accessRegistry.setDefaultResponse(false);
-
-        // Test access check (this should fail as the user doesn't have access)
-        vm.startPrank(unauthorizedUser);
-        vm.expectRevert(abi.encodeWithSelector(LibErrors.AccountUnauthorized.selector, unauthorizedUser));
-        adapter.send(SendParam(0, bytes32(0), 0, 0, "", "", ""), MessagingFee(0, 0), address(0));
-        vm.stopPrank();
-    }
 }

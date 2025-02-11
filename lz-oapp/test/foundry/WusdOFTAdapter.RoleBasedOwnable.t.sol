@@ -15,26 +15,26 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
 
     uint32 private aEid = 1;
     uint32 private bEid = 2;
-    
+
     address public defaultAdmin = makeAddr("defaultAdmin");
     address public admin = makeAddr("admin");
     address public placeholderAdmin = makeAddr("placeholderAdmin");
     address public user = makeAddr("user");
-    
+
     function setUp() public virtual override {
         // Deploy mock ERC20F token
         token = new ERC20Mock("Token", "TOKEN", 18);
 
         super.setUp();
         setUpEndpoints(2, LibraryType.UltraLightNode);
-        
+
         // Deploy WusdOFTAdapter with necessary parameters
         vm.startPrank(defaultAdmin);
         adapter = new WusdOFTAdapter(
-            address(token),                 // token address
-            address(endpoints[aEid]),       // mock LZ endpoint
-            defaultAdmin,                   // default admin
-            admin                           // delegate (gets OAPP_ADMIN_ROLE)
+            address(token),             // token address
+            address(endpoints[aEid]),   // mock LZ endpoint
+            defaultAdmin,               // default admin
+            admin                       // delegate (gets OAPP_ADMIN_ROLE)
         );
         vm.stopPrank();
     }
@@ -54,22 +54,22 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
 
     function test_DefaultAdminCanGrantRoles() public {
         vm.startPrank(defaultAdmin);
-        
+
         vm.expectEmit(true, true, true, true);
         emit IAccessControl.RoleGranted(LibRoles.PAUSER_ROLE, placeholderAdmin, defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, placeholderAdmin);
         assertTrue(adapter.hasRole(LibRoles.PAUSER_ROLE, placeholderAdmin));
-        
+
         vm.expectEmit(true, true, true, true);
         emit IAccessControl.RoleGranted(LibRoles.SALVAGE_ROLE, placeholderAdmin, defaultAdmin);
         adapter.grantRole(LibRoles.SALVAGE_ROLE, placeholderAdmin);
         assertTrue(adapter.hasRole(LibRoles.SALVAGE_ROLE, placeholderAdmin));
-        
+
         vm.expectEmit(true, true, true, true);
         emit IAccessControl.RoleGranted(LibRoles.EMBARGO_ROLE, placeholderAdmin, defaultAdmin);
         adapter.grantRole(LibRoles.EMBARGO_ROLE, placeholderAdmin);
         assertTrue(adapter.hasRole(LibRoles.EMBARGO_ROLE, placeholderAdmin));
-        
+
         vm.stopPrank();
     }
 
@@ -78,11 +78,15 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         vm.startPrank(defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, placeholderAdmin);
         adapter.grantRole(LibRoles.SALVAGE_ROLE, placeholderAdmin);
-        
+
         // Then revoke them
+        vm.expectEmit(true, true, true, true);
+        emit IAccessControl.RoleRevoked(LibRoles.PAUSER_ROLE, placeholderAdmin, defaultAdmin);
         adapter.revokeRole(LibRoles.PAUSER_ROLE, placeholderAdmin);
+        vm.expectEmit(true, true, true, true);
+        emit IAccessControl.RoleRevoked(LibRoles.SALVAGE_ROLE, placeholderAdmin, defaultAdmin);
         adapter.revokeRole(LibRoles.SALVAGE_ROLE, placeholderAdmin);
-        
+
         assertFalse(adapter.hasRole(LibRoles.PAUSER_ROLE, placeholderAdmin));
         assertFalse(adapter.hasRole(LibRoles.SALVAGE_ROLE, placeholderAdmin));
         vm.stopPrank();
@@ -98,7 +102,7 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
 
     function test_NonAdminCannotGrantRoles() public {
         vm.startPrank(user);
-        
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -107,13 +111,13 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
             )
         );
         adapter.grantRole(LibRoles.PAUSER_ROLE, placeholderAdmin);
-        
+
         vm.stopPrank();
     }
 
     function test_NonAdminCannotRevokeRoles() public {
         vm.startPrank(user);
-        
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -122,7 +126,7 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
             )
         );
         adapter.revokeRole(LibRoles.PAUSER_ROLE, placeholderAdmin);
-        
+
         vm.stopPrank();
     }
 
@@ -130,7 +134,7 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         // Test that OAPP_ADMIN_ROLE can perform owner-like actions
         vm.prank(admin);
         adapter.setDelegate(placeholderAdmin); // This is an owner-only function from OAppCore
-        
+
         // Test that non-OAPP_ADMIN_ROLE cannot perform owner-like actions
         vm.startPrank(user);
         vm.expectRevert(
@@ -149,9 +153,11 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, user);
         assertTrue(adapter.hasRole(LibRoles.PAUSER_ROLE, user));
-        
+
         // User can renounce their own role
         vm.prank(user);
+        vm.expectEmit(true, true, true, true);
+        emit IAccessControl.RoleRevoked(LibRoles.PAUSER_ROLE, user, user);
         adapter.renounceRole(LibRoles.PAUSER_ROLE, user);
         assertFalse(adapter.hasRole(LibRoles.PAUSER_ROLE, user));
     }
@@ -160,14 +166,10 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         // Grant a role to user
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, user);
-        
+
         // Another account cannot renounce user's role
         vm.prank(placeholderAdmin);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlBadConfirmation.selector
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlBadConfirmation.selector));
         adapter.renounceRole(LibRoles.PAUSER_ROLE, user);
     }
 
@@ -186,11 +188,11 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         // First grant DEFAULT_ADMIN_ROLE to another account
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.DEFAULT_ADMIN_ROLE, placeholderAdmin);
-        
+
         // Then revoke it
         vm.prank(defaultAdmin);
         adapter.revokeRole(LibRoles.DEFAULT_ADMIN_ROLE, placeholderAdmin);
-        
+
         assertFalse(adapter.hasRole(LibRoles.DEFAULT_ADMIN_ROLE, placeholderAdmin));
     }
 
@@ -204,21 +206,21 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         // First grant PAUSER_ROLE to be able to pause
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, defaultAdmin);
-        
+
         // Pause the contract
         vm.prank(defaultAdmin);
         adapter.pause();
-        
+
         // Try to grant a role while paused
         vm.prank(defaultAdmin);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         adapter.grantRole(LibRoles.SALVAGE_ROLE, user);
-        
+
         // Try to revoke a role while paused
         vm.prank(defaultAdmin);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         adapter.revokeRole(LibRoles.PAUSER_ROLE, defaultAdmin);
-        
+
         // Try to renounce a role while paused
         vm.prank(user);
         vm.expectRevert(Pausable.EnforcedPause.selector);
@@ -231,14 +233,14 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         adapter.grantRole(LibRoles.DEFAULT_ADMIN_ROLE, placeholderAdmin);
         // Original admin should still maintain their role
         assertTrue(adapter.hasRole(LibRoles.DEFAULT_ADMIN_ROLE, defaultAdmin));
-        
+
         // Verify both accounts can perform admin actions
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, user);
-        
+
         vm.prank(placeholderAdmin);
         adapter.grantRole(LibRoles.SALVAGE_ROLE, user);
-        
+
         assertTrue(adapter.hasRole(LibRoles.PAUSER_ROLE, user));
         assertTrue(adapter.hasRole(LibRoles.SALVAGE_ROLE, user));
     }
@@ -248,13 +250,11 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.DEFAULT_ADMIN_ROLE, placeholderAdmin);
         assertTrue(adapter.hasRole(LibRoles.DEFAULT_ADMIN_ROLE, placeholderAdmin));
-        
+
         // New admin should be able to grant roles
         vm.prank(placeholderAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, user);
         assertTrue(adapter.hasRole(LibRoles.PAUSER_ROLE, user));
-        
-
     }
 
     function test_RoleManagementWhenUnpaused() public {
@@ -263,18 +263,18 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         adapter.grantRole(LibRoles.PAUSER_ROLE, defaultAdmin);
         vm.prank(defaultAdmin);
         adapter.pause();
-        
+
         // Then unpause
         vm.prank(defaultAdmin);
         adapter.unpause();
-        
+
         // Verify role management works after unpausing
         vm.prank(defaultAdmin);
         adapter.grantRole(LibRoles.SALVAGE_ROLE, user);
         assertTrue(adapter.hasRole(LibRoles.SALVAGE_ROLE, user));
-        
+
         vm.prank(defaultAdmin);
         adapter.revokeRole(LibRoles.SALVAGE_ROLE, user);
         assertFalse(adapter.hasRole(LibRoles.SALVAGE_ROLE, user));
     }
-} 
+}

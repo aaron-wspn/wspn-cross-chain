@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/IAccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../contracts/WusdOFTAdapter.sol";
-import "../../test/mocks/ERC20Mock.sol";
+import { ERC20Mock, IERC20Errors } from "../../test/mocks/ERC20Mock.sol";
 import { TestHelperOz5 } from "@layerzerolabs/test-devtools-evm-foundry/contracts/TestHelperOz5.sol";
 import { LibErrors } from "../../contracts/library/LibErrors.sol";
 import { LibRoles } from "../../contracts/library/LibRoles.sol";
@@ -18,7 +18,7 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
 
     uint32 private aEid = 1;
     uint32 private bEid = 2;
-    
+
     address public defaultAdmin = makeAddr("defaultAdmin");
     address public admin = makeAddr("admin");
     address public salvager = makeAddr("salvager");
@@ -34,16 +34,16 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
 
         super.setUp();
         setUpEndpoints(2, LibraryType.UltraLightNode);
-        
+
         // Deploy WusdOFTAdapter with necessary parameters
         vm.startPrank(defaultAdmin);
         adapter = new WusdOFTAdapter(
-            address(innerToken),            // token address
-            address(endpoints[aEid]),       // mock LZ endpoint
-            defaultAdmin,                   // default admin
-            admin                           // delegate (gets OAPP_ADMIN_ROLE)
+            address(innerToken),        // token address
+            address(endpoints[aEid]),   // mock LZ endpoint
+            defaultAdmin,               // default admin
+            admin                       // delegate (gets OAPP_ADMIN_ROLE)
         );
-        
+
         // Setup roles
         adapter.grantRole(LibRoles.SALVAGE_ROLE, salvager);
         vm.stopPrank();
@@ -104,16 +104,37 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
         assertEq(randomToken.balanceOf(salvager), 0);
 
         vm.startPrank(salvager);
-        
+
         vm.expectEmit(true, true, true, true);
         emit TokenSalvaged(salvager, address(randomToken), amount);
-        
+
         adapter.salvageERC20(IERC20(address(randomToken)), amount);
-        
+
         // Verify balances after salvage
         assertEq(randomToken.balanceOf(address(adapter)), 0);
         assertEq(randomToken.balanceOf(salvager), amount);
-        
+
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_SalvageERC20InsufficientBalance() public {
+        uint256 amount = 100;
+        uint256 amountMoreThanBalance = amount + 1;
+        // Setup: Send some tokens to the adapter
+        randomToken.mint(address(adapter), amount);
+        assertEq(randomToken.balanceOf(address(adapter)), amount);
+        assertEq(randomToken.balanceOf(salvager), 0);
+
+        vm.startPrank(salvager);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientBalance.selector,
+                address(adapter),
+                randomToken.balanceOf(address(adapter)),
+                amountMoreThanBalance
+            )
+        );
+        adapter.salvageERC20(IERC20(address(randomToken)), amountMoreThanBalance);
         vm.stopPrank();
     }
 
@@ -125,16 +146,16 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
         assertEq(address(salvager).balance, 0);
 
         vm.startPrank(salvager);
-        
+
         vm.expectEmit(true, true, true, true);
         emit GasTokenSalvaged(salvager, amount);
-        
+
         adapter.salvageGas(amount);
-        
+
         // Verify balances after salvage
         assertEq(address(adapter).balance, 0);
         assertEq(address(salvager).balance, amount);
-        
+
         vm.stopPrank();
     }
 
@@ -182,7 +203,7 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
         vm.startPrank(defaultAdmin);
         adapter.grantRole(LibRoles.PAUSER_ROLE, defaultAdmin);
         adapter.pause();
-        
+
         // Unpause
         adapter.unpause();
         vm.stopPrank();
@@ -202,7 +223,7 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
 
         vm.startPrank(salvager);
         adapter.salvageERC20(IERC20(address(randomToken)), salvageAmount);
-        
+
         // Verify partial salvage
         assertEq(randomToken.balanceOf(address(adapter)), totalAmount - salvageAmount);
         assertEq(randomToken.balanceOf(salvager), salvageAmount);
@@ -217,10 +238,10 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
 
         vm.startPrank(salvager);
         adapter.salvageGas(salvageAmount);
-        
+
         // Verify partial salvage
         assertEq(address(adapter).balance, totalAmount - salvageAmount);
         assertEq(address(salvager).balance, salvageAmount);
         vm.stopPrank();
     }
-} 
+}
