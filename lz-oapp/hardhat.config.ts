@@ -89,7 +89,7 @@ const config: HardhatUserConfig = {
             url: process.env.RPC_URL_HOLESKY || 'https://1rpc.io/holesky',
             accounts,
             oftAdapter: {
-                tokenAddress: '0x0', // Set the token address for the OFT adapter
+                tokenAddress: '0xDdCb87d9CAdB7a030f35cD890Be49F7554473638', // Set the token address for the OFT adapter
             },
         },
         'sepolia-testnet': {
@@ -97,7 +97,7 @@ const config: HardhatUserConfig = {
             url: process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.public.blastapi.io',
             accounts,
             oftAdapter: {
-                tokenAddress: '0x0', // Set the token address for the OFT adapter
+                tokenAddress: '0xaF16E77FbF7Ca7649387124E7d4061c7e95206A1', // Set the token address for the OFT adapter
             },
         },
     },
