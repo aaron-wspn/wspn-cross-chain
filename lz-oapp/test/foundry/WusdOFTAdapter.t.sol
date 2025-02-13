@@ -455,4 +455,74 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         assertEq(aOFTAdapter.nonces(userA), 1);
         assertEq(aOFTAdapter.nonces(userB), 0);
     }
+
+    function test_RevertWhen_sendWithAuthorizationCallerNotInAllowlist() public {
+        uint256 initialBalance = aToken.balanceOf(userA);
+        uint256 tokensToSend = 580 * 10 ** aTokenDecimals;
+        uint256 deadline = block.timestamp + 60 * 5; // 5 minutes
+
+        // Create SendParam
+        bytes memory options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(300000, 0);
+        SendParam memory sendParam = SendParam(
+            bEid,
+            addressToBytes32(userA),
+            tokensToSend,
+            tokensToSend,
+            options,
+            "",
+            ""
+        );
+        // Create Authorization
+        IWusdOFTAdapter.OFTSendAuthorization memory authorization = IWusdOFTAdapter.OFTSendAuthorization({
+            owner: userA,
+            spender: address(aOFTAdapter),
+            value: tokensToSend,
+            permitNonce: aToken.nonces(userA),
+            deadline: deadline,
+            sendParams: sendParam,
+            nonce: aOFTAdapter.nonces(userA)
+        });
+
+        // Get signatures
+        (uint8 permitV, bytes32 permitR, bytes32 permitS) = _createPermitSignature(
+            userA,
+            address(aOFTAdapter),
+            tokensToSend,
+            deadline
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = _createAuthorizationSignature(authorization);
+
+        // Sponsor should quote send messaging fee
+        vm.prank(userB);
+        MessagingFee memory fee = aOFTAdapter.quoteSend(sendParam, false);
+
+        // Initial assertions
+        assertEq(aToken.balanceOf(address(aOFTAdapter)), 0);
+        assertEq(bToken.balanceOf(address(bOFTAdapter)), 0);
+        assertEq(aToken.balanceOf(userA), initialBalance);
+        assertEq(bToken.balanceOf(userA), 0);
+        assertEq(aToken.balanceOf(userB), 0);
+        assertEq(bToken.balanceOf(userB), 0);
+
+        // set adapter access registry on OFT Adapter A
+        vm.prank(contractAdmin);
+        aOFTAdapter.accessRegistryUpdate(address(accessRegistryOAppA));
+
+        // Execute sendWithAuthorization from userB (operator). It should fail because userB is not in the allowlist
+        vm.startPrank(userB); // userB is the sponsor
+        vm.expectRevert(abi.encodeWithSelector(LibErrors.AccountUnauthorized.selector, userB));
+        aOFTAdapter.sendWithAuthorization{ value: fee.nativeFee }(
+            authorization,
+            permitV,
+            permitR,
+            permitS,
+            v,
+            r,
+            s,
+            fee,
+            userB
+        );
+        vm.stopPrank();
+    }
 }
