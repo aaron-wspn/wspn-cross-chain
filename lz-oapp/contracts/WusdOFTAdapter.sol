@@ -129,9 +129,8 @@ contract WusdOFTAdapter is
     EnumerableMap.AddressToUintMap private _embargoLedger;
 
     // Events
-    event EmbargoLock(address indexed recipient, bytes indexed bError, uint256 _amountLD);
-    event EmbargoReleased(address indexed caller, address indexed embargoedAccount, uint256 _amountLD);
-    event EmbargoRecovered(
+    event EmbargoLock(address indexed recipient, bytes bError, uint256 amount);
+    event EmbargoRelease(
         address indexed caller,
         address indexed embargoedAccount,
         address indexed _to,
@@ -404,27 +403,50 @@ contract WusdOFTAdapter is
     }
 
     /**
-     * @notice A function used to withdraw `innerToken` balance currently embargoed by the contract.
+     * @notice A function used to withdraw `innerToken` balance currently embargoed by the contract, 
+     * to a specified `_to` address. The entirety of the `embargoed` account's balance is withdrawn.
      * @dev Calling Conditions:
      *
      * - `embargoed` account has a non-zero balance in `_embargoLedger`.
-     * - the caller has the `EMBARGO_ROLE`.
+     * - the caller has the `EMBARGO_ROLE`, if the recipient `_to` is not the `embargoed` account.
      * - the contract is not paused.
      *
      * @param embargoed The account that currently has an embargoed balance on this contract.
      * @param _to The address to send the tokens to.
      */
-
     function recoverEmbargo(address embargoed, address _to) external {
-        _authorizeEmbargo();
+        _recoverEmbargo(embargoed, _to);
+    }
+
+    /**
+     * @notice A function used to withdraw `innerToken` balance currently embargoed by the contract to
+     * the `embargoed` account. Used in the scenario where the `embargoed` account is now capable/allowed 
+     * to hold a balance of `innerToken`, hence the function has no access control.
+     * @dev Calling Conditions:
+     *
+     * - the calling account has a non-zero balance in `_embargoLedger`.
+     * - the contract is not paused.
+     *
+     * @param embargoed The account that currently has an embargoed balance on this contract.
+     */
+    function releaseEmbargo(address embargoed) external {
+        _recoverEmbargo(embargoed, embargoed);
+    }
+
+    /**
+     * @dev Internal function to execute the recover embargo operation.
+     * @param embargoed The account that currently has an embargoed balance on this contract.
+     * @param _to The address to send the tokens to.
+     */
+    function _recoverEmbargo(address embargoed, address _to) internal {
+        if (embargoed != _to) {
+            _authorizeEmbargo();
+        }
         (bool embargoExists, uint256 embargoAmount) = _embargoLedger.tryGet(embargoed);
         bool embargoPurged = _embargoLedger.remove(embargoed);
         require(embargoExists && embargoPurged, LibErrors.NoBalance());
-        if (embargoed == _to) {
-            emit EmbargoReleased(_msgSender(), embargoed, embargoAmount);
-        } else {
-            emit EmbargoRecovered(_msgSender(), embargoed, _to, embargoAmount);
-        }
+        
+        emit EmbargoRelease(_msgSender(), embargoed, _to, embargoAmount);
         _withdrawERC20(IERC20(address(innerToken)), _to, embargoAmount);
     }
 

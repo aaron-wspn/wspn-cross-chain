@@ -111,7 +111,7 @@ contract WusdOFTAdapterPauseCapableTest is TestHelperOz5 {
         adapter.unpause();
     }
 
-    function test_RevertIf_EmbargoRecoveryWhenPaused() public {
+    function test_RevertIf_EmbargoReleaseWhenPaused() public {
         // First pause the contract
         vm.prank(pauser);
         adapter.pause();
