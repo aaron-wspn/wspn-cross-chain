@@ -303,6 +303,7 @@ contract WusdOFTAdapter is
         MessagingFee calldata fee,
         address refundAddress
     ) external payable virtual override returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
+        _requireHasAccess(_msgSender());
         // Check deadline
         require(block.timestamp <= authorization.deadline, "WusdOFTAdapter: expired deadline");
         // Create EIP-712 struct hash
