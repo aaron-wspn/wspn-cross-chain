@@ -474,7 +474,8 @@ contract WusdOFTAdapter is
     ) internal virtual returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
         // @dev Applies the token transfers regarding this send() operation.
         // - amountSentLD is the amount in local decimals that was ACTUALLY sent/debited from the sender.
-        // - amountReceivedLD is the amount in local decimals that will be received/credited to the recipient on the remote OFT instance.
+        // - amountReceivedLD is the amount in local decimals that will be received/credited to the recipient 
+        // on the remote OFT instance.
         (uint256 amountSentLD, uint256 amountReceivedLD) = _debit(
             tokenSender,
             _sendParam.amountLD,
