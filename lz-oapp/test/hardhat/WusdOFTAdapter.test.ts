@@ -256,7 +256,6 @@ describe('WusdOFTAdapter Integration Test', function () {
         // Create Authorization
         const authorization: IWusdOFTAdapter.OFTSendAuthorizationStruct = {
             owner: permitValues.owner,
-            spender: permitValues.spender,
             value: permitValues.value,
             permitNonce: permitValues.nonce,
             deadline: deadline,
@@ -265,7 +264,6 @@ describe('WusdOFTAdapter Integration Test', function () {
         }
 
         // Generate send authorization signature using ethers
-        const domainSeparator = await wusdOftAdapterA.DOMAIN_SEPARATOR()
         const authDomain = {
             name: 'WusdOFTAdapter',
             version: '1',
@@ -276,7 +274,6 @@ describe('WusdOFTAdapter Integration Test', function () {
         const authTypes = {
             OFTSendAuthorization: [
                 { name: 'owner', type: 'address' },
-                { name: 'spender', type: 'address' },
                 { name: 'value', type: 'uint256' },
                 { name: 'permitNonce', type: 'uint256' },
                 { name: 'deadline', type: 'uint256' },
@@ -329,9 +326,15 @@ describe('WusdOFTAdapter Integration Test', function () {
         )
         const expectedTokensOnB = tokensToSend.div(decimalConversionRate)
 
+        // Verify token balances
         expect(await tokenA.balanceOf(tokenHolder.address)).to.equal(tokenAmountA.sub(tokensToSend))
         expect(await tokenB.balanceOf(tokenHolder.address)).to.equal(expectedTokensOnB)
         expect(await tokenA.balanceOf(wusdOftAdapterA.address)).to.equal(0) // Tokens are burned
-        expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(0) // Tokens are minted directly to recipient
+        expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(0) // Tokens are minted and sent to recipient
+        expect(await tokenA.balanceOf(bridgeOperatorA.address)).to.equal(0)
+        expect(await tokenB.balanceOf(bridgeOperatorA.address)).to.equal(0)
+        // Verify nonces were incremented
+        expect(await wusdOftAdapterA.nonces(tokenHolder.address)).to.equal(1)
+        expect(await wusdOftAdapterA.nonces(bridgeOperatorA.address)).to.equal(0)
     })
 })
