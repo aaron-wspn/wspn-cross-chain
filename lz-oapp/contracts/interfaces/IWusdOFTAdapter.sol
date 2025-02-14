@@ -8,7 +8,7 @@ interface IWusdOFTAdapter {
     struct OFTSendAuthorization {
         // Permit data
         address owner;
-        address spender; 
+        // address spender; // assumed to be the adapter
         uint256 value;
         uint256 permitNonce;
         // Shared data

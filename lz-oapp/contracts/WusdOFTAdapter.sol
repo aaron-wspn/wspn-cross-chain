@@ -72,7 +72,7 @@ contract WusdOFTAdapter is
      */
     bytes32 public constant SEND_AUTHORIZATION_TYPEHASH =
         keccak256(
-            "OFTSendAuthorization(address owner,address spender,uint256 value,uint256 permitNonce,uint256 deadline,SendParam sendParams,uint256 nonce)SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
+            "OFTSendAuthorization(address owner,uint256 value,uint256 permitNonce,uint256 deadline,SendParam sendParams,uint256 nonce)SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
         );
 
     // Add a constant for the SendParam type hash
@@ -316,7 +316,6 @@ contract WusdOFTAdapter is
             abi.encode(
                 SEND_AUTHORIZATION_TYPEHASH,
                 authorization.owner,
-                authorization.spender,
                 authorization.value,
                 authorization.permitNonce,
                 authorization.deadline,
@@ -331,7 +330,7 @@ contract WusdOFTAdapter is
         // Execute permit on token
         IERC20F(address(innerToken)).permit(
             authorization.owner,
-            authorization.spender,
+            address(this),
             authorization.value,
             authorization.deadline,
             permitV,
