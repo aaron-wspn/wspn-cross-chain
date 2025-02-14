@@ -38,7 +38,6 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
 
     address public defaultAdmin = makeAddr("defaultAdmin");
     address public contractAdmin = makeAddr("contractAdmin");
-    address public oAppAdmin = makeAddr("oAppAdmin");
     address public pauser = makeAddr("pauser");
     address public salvageAdmin = makeAddr("salvageAdmin");
     address public embargoAdmin = makeAddr("embargoAdmin");
@@ -68,19 +67,19 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
             address(aToken), // token address
             address(endpoints[aEid]), // mock LZ endpoint
             defaultAdmin, // default admin
-            oAppAdmin // delegate (gets OAPP_ADMIN_ROLE)
+            contractAdmin // delegate (gets CONTRACT_ADMIN_ROLE)
         );
         bOFTAdapter = new WusdOFTAdapter(
             address(bToken), // token address
             address(endpoints[bEid]), // mock LZ endpoint
             defaultAdmin, // default admin
-            oAppAdmin // delegate (gets OAPP_ADMIN_ROLE)
+            contractAdmin // delegate (gets CONTRACT_ADMIN_ROLE)
         );
         // config and wire the ofts
         address[] memory ofts = new address[](2);
         ofts[0] = address(aOFTAdapter);
         ofts[1] = address(bOFTAdapter);
-        vm.startPrank(oAppAdmin);
+        vm.startPrank(contractAdmin);
         wireOApps(ofts);
         vm.stopPrank();
         // Setup roles
@@ -105,12 +104,12 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         assertEq(address(aOFTAdapter.token()), address(aToken));
         assertEq(address(aOFTAdapter.endpoint()), address(endpoints[aEid]));
         EndpointV2 aEndpoint = EndpointV2(address(endpoints[aEid]));
-        assertEq(aEndpoint.delegates(address(aOFTAdapter)), address(oAppAdmin));
+        assertEq(aEndpoint.delegates(address(aOFTAdapter)), address(contractAdmin));
         assertEq(address(aOFTAdapter.accessRegistry()), address(0));
         assertEq(aOFTAdapter.owner(), address(0));
         assertEq(aOFTAdapter.paused(), false);
         assertTrue(aOFTAdapter.hasRole(LibRoles.DEFAULT_ADMIN_ROLE, defaultAdmin));
-        assertTrue(aOFTAdapter.hasRole(LibRoles.OAPP_ADMIN_ROLE, oAppAdmin));
+        assertTrue(aOFTAdapter.hasRole(LibRoles.CONTRACT_ADMIN_ROLE, contractAdmin));
     }
 
     function test_sendTokensToSelfUserA() public {

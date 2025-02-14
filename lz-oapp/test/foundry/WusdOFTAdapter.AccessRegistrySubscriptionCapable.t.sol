@@ -46,7 +46,7 @@ contract WusdOFTAdapterAccessRegistrySubscriptionCapableTest is TestHelperOz5 {
             address(token), // token address
             address(endpoints[aEid]), // mock LZ endpoint
             defaultAdmin, // default admin
-            admin // delegate (gets OAPP_ADMIN_ROLE)
+            admin // delegate (gets CONTRACT_ADMIN_ROLE)
         );
 
         // Setup roles

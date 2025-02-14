@@ -34,7 +34,7 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
             address(token),             // token address
             address(endpoints[aEid]),   // mock LZ endpoint
             defaultAdmin,               // default admin
-            admin                       // delegate (gets OAPP_ADMIN_ROLE)
+            admin                       // delegate (gets CONTRACT_ADMIN_ROLE)
         );
         vm.stopPrank();
     }
@@ -43,9 +43,9 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
         // Check DEFAULT_ADMIN_ROLE
         assertTrue(adapter.hasRole(LibRoles.DEFAULT_ADMIN_ROLE, defaultAdmin));
         assertFalse(adapter.hasRole(LibRoles.DEFAULT_ADMIN_ROLE, admin));
-        // Check OAPP_ADMIN_ROLE
-        assertTrue(adapter.hasRole(LibRoles.OAPP_ADMIN_ROLE, admin));
-        assertFalse(adapter.hasRole(LibRoles.OAPP_ADMIN_ROLE, defaultAdmin));
+        // Check CONTRACT_ADMIN_ROLE
+        assertTrue(adapter.hasRole(LibRoles.CONTRACT_ADMIN_ROLE, admin));
+        assertFalse(adapter.hasRole(LibRoles.CONTRACT_ADMIN_ROLE, defaultAdmin));
         // Verify other roles are not assigned
         assertFalse(adapter.hasRole(LibRoles.PAUSER_ROLE, defaultAdmin));
         assertFalse(adapter.hasRole(LibRoles.SALVAGE_ROLE, defaultAdmin));
@@ -95,7 +95,7 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
     function test_RoleAdminIsDefaultAdminRole() public view {
         // Verify that DEFAULT_ADMIN_ROLE is the admin role for all other roles
         assertEq(adapter.getRoleAdmin(LibRoles.PAUSER_ROLE), LibRoles.DEFAULT_ADMIN_ROLE);
-        assertEq(adapter.getRoleAdmin(LibRoles.OAPP_ADMIN_ROLE), LibRoles.DEFAULT_ADMIN_ROLE);
+        assertEq(adapter.getRoleAdmin(LibRoles.CONTRACT_ADMIN_ROLE), LibRoles.DEFAULT_ADMIN_ROLE);
         assertEq(adapter.getRoleAdmin(LibRoles.SALVAGE_ROLE), LibRoles.DEFAULT_ADMIN_ROLE);
         assertEq(adapter.getRoleAdmin(LibRoles.EMBARGO_ROLE), LibRoles.DEFAULT_ADMIN_ROLE);
     }
@@ -131,17 +131,17 @@ contract WusdOFTAdapterRoleBasedOwnableTest is TestHelperOz5 {
     }
 
     function test_RoleBasedOwnershipChecks() public {
-        // Test that OAPP_ADMIN_ROLE can perform owner-like actions
+        // Test that CONTRACT_ADMIN_ROLE can perform owner-like actions
         vm.prank(admin);
         adapter.setDelegate(placeholderAdmin); // This is an owner-only function from OAppCore
 
-        // Test that non-OAPP_ADMIN_ROLE cannot perform owner-like actions
+        // Test that non-CONTRACT_ADMIN_ROLE cannot perform owner-like actions
         vm.startPrank(user);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
                 user,
-                LibRoles.OAPP_ADMIN_ROLE
+                LibRoles.CONTRACT_ADMIN_ROLE
             )
         );
         adapter.setDelegate(user);

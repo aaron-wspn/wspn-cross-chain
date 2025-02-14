@@ -83,8 +83,10 @@ contract WusdOFTAdapter is
 
     // Roles
     /**
-     * @notice The Access Control identifier for the Contract Admin Role.
-     * An account with "CONTRACT_ADMIN_ROLE" can update the Access Registry.
+     * @notice The Access Control identifier for the Contract Admin Role. These role overarches two purposes:
+     * 
+     * 1. Update the Access Registry.
+     * 2. Update the OApp configurations, i.e. those inherited from OApp that are restricted to `onlyOwner`.
      *
      * @dev This constant holds the hash of the string "CONTRACT_ADMIN_ROLE".
      */
@@ -97,14 +99,6 @@ contract WusdOFTAdapter is
      * @dev This constant holds the hash of the string "PAUSER_ROLE".
      */
     bytes32 public constant PAUSER_ROLE = LibRoles.PAUSER_ROLE;
-
-    /**
-     * @notice The Access Control identifier for the OApp Admin Role.
-     * An account with "OAPP_ADMIN_ROLE" can update the OApp `onlyOwner` configurations.
-     *
-     * @dev This constant holds the hash of the string "OAPP_ADMIN_ROLE".
-     */
-    bytes32 public constant OAPP_ADMIN_ROLE = LibRoles.OAPP_ADMIN_ROLE;
 
     /**
      * @notice The Access Control identifier for the Salvager Role.
@@ -143,7 +137,7 @@ contract WusdOFTAdapter is
      * @param _lzEndpoint The LayerZero endpoint address.
      * @param defaultAdmin The default admin for the contract.
      * @param _delegate The delegate for the contract. This account will be able to set configs, on behalf of the
-     *                  OApp, directly on the Endpoint contract. It will also receive the OAPP_ADMIN_ROLE.
+     *                  OApp, directly on the Endpoint contract. It will also receive the CONTRACT_ADMIN_ROLE.
      */
     constructor(
         address _token,
@@ -159,7 +153,7 @@ contract WusdOFTAdapter is
     {
         innerToken = IERC20F(_token);
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(OAPP_ADMIN_ROLE, _delegate);
+        _grantRole(CONTRACT_ADMIN_ROLE, _delegate);
     }
 
     /**
@@ -527,14 +521,14 @@ contract WusdOFTAdapter is
     /**
      * @notice This is a function that applies a role check to guard operations originally dependent on `onlyOwner`.
      *
-     * @dev Reverts when the caller does not have the "DEFAULT_ADMIN_ROLE".
+     * @dev Reverts when the caller does not have the "CONTRACT_ADMIN_ROLE".
      *
      * Calling Conditions:
      *
-     * - Only the "DEFAULT_ADMIN_ROLE" can execute.
+     * - Only the "CONTRACT_ADMIN_ROLE" can execute.
      */
     /* solhint-disable no-empty-blocks */
-    function _checkOwner() internal view virtual override(Ownable, RoleBasedOwnable) onlyRole(OAPP_ADMIN_ROLE) {}
+    function _checkOwner() internal view virtual override(Ownable, RoleBasedOwnable) onlyRole(CONTRACT_ADMIN_ROLE) {}
 
     /**
      * @notice This is a function that applies any validations required to allow Access Registry updates.

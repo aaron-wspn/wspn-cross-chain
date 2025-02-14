@@ -45,8 +45,8 @@ describe('WusdOFTAdapter Integration Test', function () {
     let endpointOwner: SignerWithAddress
     let defaultAdminAdapterA: SignerWithAddress
     let defaultAdminAdapterB: SignerWithAddress
-    let oappAdminAdapterA: SignerWithAddress
-    let oappAdminAdapterB: SignerWithAddress
+    let contractAdminAdapterA: SignerWithAddress
+    let contractAdminAdapterB: SignerWithAddress
     let tokenHolder: SignerWithAddress
     let bridgeOperatorA: SignerWithAddress
     let tokenA: IERC20F
@@ -70,8 +70,8 @@ describe('WusdOFTAdapter Integration Test', function () {
             endpointOwner,
             defaultAdminAdapterA,
             defaultAdminAdapterB,
-            oappAdminAdapterA,
-            oappAdminAdapterB,
+            contractAdminAdapterA,
+            contractAdminAdapterB,
             tokenHolder,
             bridgeOperatorA,
         ] = signers
@@ -128,13 +128,13 @@ describe('WusdOFTAdapter Integration Test', function () {
             erc20fA.address,
             mockEndpointV2A.address,
             defaultAdminAdapterA.address,
-            oappAdminAdapterA.address
+            contractAdminAdapterA.address
         )) as WusdOFTAdapter
         wusdOftAdapterB = (await WusdOFTAdapter.deploy(
             erc20fB.address,
             mockEndpointV2B.address,
             defaultAdminAdapterB.address,
-            oappAdminAdapterB.address
+            contractAdminAdapterB.address
         )) as WusdOFTAdapter
         tokenA = new ethers.Contract(erc20fA.address, ERC20F_ABI, deployer) as IERC20F
         tokenB = new ethers.Contract(erc20fB.address, ERC20F_ABI, deployer) as IERC20F
@@ -178,12 +178,12 @@ describe('WusdOFTAdapter Integration Test', function () {
         await tokenB.connect(superAdminTokenB).grantRole(await tokenB.BURNER_ROLE(), wusdOftAdapterB.address)
 
         // Wire the Adapters to each other, by setting each Adapter instance as a peer of the other in the LZEndpoint,
-        // using oAppAdmin (who has OAPP_ADMIN_ROLE)
+        // using superAdmin (who has CONTRACT_ADMIN_ROLE)
         await wusdOftAdapterA
-            .connect(oappAdminAdapterA)
+            .connect(contractAdminAdapterA)
             .setPeer(eidB, ethers.utils.zeroPad(wusdOftAdapterB.address, 32))
         await wusdOftAdapterB
-            .connect(oappAdminAdapterB)
+            .connect(contractAdminAdapterB)
             .setPeer(eidA, ethers.utils.zeroPad(wusdOftAdapterA.address, 32))
 
         // Mint tokens to the tokenHolder
