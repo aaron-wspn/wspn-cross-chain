@@ -115,7 +115,7 @@ contract WusdOFTAdapter is
     IERC20F internal immutable innerToken;
 
     // Embargoed amounts by address
-    EnumerableMap.AddressToUintMap private _embargoLedger;
+    EnumerableMap.AddressToUintMap internal _embargoLedger;
 
     // Events
     event EmbargoLock(address indexed recipient, bytes bError, uint256 amount);
