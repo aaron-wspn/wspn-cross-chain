@@ -296,8 +296,8 @@ contract WusdOFTAdapter is
         MessagingFee calldata fee,
         address refundAddress
     ) external payable virtual override returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
+        // Checks
         _requireHasAccess(_msgSender());
-        // Check deadline
         require(block.timestamp <= authorization.deadline, "WusdOFTAdapter: expired deadline");
         // Create EIP-712 struct hash
         bytes32 sendParamsHash = keccak256(
@@ -320,12 +320,14 @@ contract WusdOFTAdapter is
                 authorization.permitNonce,
                 authorization.deadline,
                 sendParamsHash,
-                _useNonce(authorization.owner)
+                authorization.nonce
             )
         );
         bytes32 typedDataHash = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(typedDataHash, v, r, s);
         require(signer == authorization.owner, "WusdOFTAdapter: invalid authorization");
+        // Checks-Effects
+        _useCheckedNonce(authorization.owner, authorization.nonce);
 
         // Execute permit on token
         IERC20F(address(innerToken)).permit(
