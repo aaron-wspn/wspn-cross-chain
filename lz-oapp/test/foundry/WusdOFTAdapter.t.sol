@@ -362,7 +362,6 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
             abi.encode(
                 aOFTAdapter.SEND_AUTHORIZATION_TYPEHASH(),
                 authorization.owner,
-                authorization.value,
                 authorization.permitNonce,
                 authorization.deadline,
                 sendParamsStructHash,
@@ -397,7 +396,6 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         // Create Authorization
         IWusdOFTAdapter.OFTSendAuthorization memory authorization = IWusdOFTAdapter.OFTSendAuthorization({
             owner: userA,
-            value: tokensToSend,
             permitNonce: aToken.nonces(userA),
             deadline: deadline,
             sendParams: sendParam,
@@ -472,7 +470,6 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         // Create Authorization
         IWusdOFTAdapter.OFTSendAuthorization memory authorization = IWusdOFTAdapter.OFTSendAuthorization({
             owner: userA,
-            value: tokensToSend,
             permitNonce: aToken.nonces(userA),
             deadline: deadline,
             sendParams: sendParam,

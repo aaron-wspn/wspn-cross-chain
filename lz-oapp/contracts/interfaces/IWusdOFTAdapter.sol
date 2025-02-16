@@ -9,7 +9,7 @@ interface IWusdOFTAdapter {
         // Permit data
         address owner;
         // address spender; // assumed to be the adapter
-        uint256 value;
+        // uint256 value;   // embedded in sendParams as amountLD
         uint256 permitNonce;
         // Shared data
         uint256 deadline; // In this design, the deadline must match both the permit and the send authorization

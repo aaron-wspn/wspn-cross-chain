@@ -256,7 +256,6 @@ describe('WusdOFTAdapter Integration Test', function () {
         // Create Authorization
         const authorization: IWusdOFTAdapter.OFTSendAuthorizationStruct = {
             owner: permitValues.owner,
-            value: permitValues.value,
             permitNonce: permitValues.nonce,
             deadline: deadline,
             sendParams: sendParam,
@@ -274,7 +273,6 @@ describe('WusdOFTAdapter Integration Test', function () {
         const authTypes = {
             OFTSendAuthorization: [
                 { name: 'owner', type: 'address' },
-                { name: 'value', type: 'uint256' },
                 { name: 'permitNonce', type: 'uint256' },
                 { name: 'deadline', type: 'uint256' },
                 { name: 'sendParams', type: 'SendParam' },
