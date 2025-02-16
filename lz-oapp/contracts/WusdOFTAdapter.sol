@@ -339,29 +339,6 @@ contract WusdOFTAdapter is
     }
 
     /**
-     * @notice A function used to salvage ERC20 tokens sent to the contract.
-     * @dev Calling Conditions:
-     *
-     * - `amount` is greater than 0.
-     * - `salvagedToken` is not the same as the `innerToken`.
-     *
-     * This function can't be used to salvage the `innerToken`, as only accounts with
-     * `EMBARGO_ROLE` can manage the `innerToken` embargoed on this contract.
-     *  emits a {TokenSalvaged} event, indicating that funds were salvaged.
-     *
-     * @param salvagedToken The ERC20 asset which is to be salvaged.
-     * @param amount The amount to be salvaged.
-     */
-    function salvageERC20(IERC20 salvagedToken, uint256 amount) external virtual override {
-        if (salvagedToken == IERC20(address(innerToken))) {
-            revert LibErrors.UnauthorizedTokenManagement();
-        }
-        _authorizeSalvageERC20();
-        _withdrawERC20(salvagedToken, _msgSender(), amount);
-        emit TokenSalvaged(_msgSender(), address(salvagedToken), amount);
-    }
-
-    /**
      * @notice A function that returns the amount of `innerToken` currently embargoed on the contract
      * for a given account.
      *
@@ -591,11 +568,22 @@ contract WusdOFTAdapter is
 
     /**
      * @notice This is a function that applies any validations required to allow salvageERC20.
+     * 
+     * It adds a check to ensure that the `salvagedToken` is not the same as `innerToken`. The `salvageERC20` function
+     * can't be used to salvage the `innerToken`, as only accounts with `EMBARGO_ROLE` can manage the `innerToken` 
+     * embargoed on this contract.
      *
-     * @dev Reverts as per `_authorizeSalvage()`.
+     * @dev Reverts:
+     *  - if `salvagedToken` is the same as `innerToken`
+     *  - as per `_authorizeSalvage()`
+     *
+     * @param salvagedToken The address of the token being salvaged.
      */
-    function _authorizeSalvageERC20() internal virtual override {
+    function _authorizeSalvageERC20(address salvagedToken) internal virtual override {
         _authorizeSalvage();
+        if (salvagedToken == address(innerToken)) {
+            revert LibErrors.UnauthorizedTokenManagement();
+        }
     }
 
     /**
