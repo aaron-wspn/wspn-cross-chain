@@ -37,7 +37,7 @@ abstract contract SalvageCapable is Context {
 	 * @param token The (indexed) address of the ERC20 token which was salvaged.
 	 * @param amount The (indexed) amount of tokens salvaged.
 	 */
-	event TokenSalvaged(address indexed caller, address indexed token, uint256 indexed amount);
+	event TokenSalvaged(address indexed caller, address indexed token, uint256 amount);
 
 	/**
 	 * @notice This event is logged when ETH is salvaged.
@@ -45,7 +45,7 @@ abstract contract SalvageCapable is Context {
 	 * @param caller The (indexed) address of the entity that triggered the salvage.
 	 * @param amount The (indexed) amount of ETH salvaged.
 	 */
-	event GasTokenSalvaged(address indexed caller, uint256 indexed amount);
+	event GasTokenSalvaged(address indexed caller, uint256 amount);
 
 	/// Functions
 

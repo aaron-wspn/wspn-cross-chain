@@ -24,8 +24,8 @@ contract WusdOFTAdapterSalvageCapableTest is TestHelperOz5 {
     address public salvager = makeAddr("salvager");
     address public user = makeAddr("user");
 
-    event TokenSalvaged(address indexed caller, address indexed token, uint256 indexed amount);
-    event GasTokenSalvaged(address indexed caller, uint256 indexed amount);
+    event TokenSalvaged(address indexed caller, address indexed token, uint256 amount);
+    event GasTokenSalvaged(address indexed caller, uint256 amount);
 
     function setUp() public virtual override {
         // Deploy mock tokens
