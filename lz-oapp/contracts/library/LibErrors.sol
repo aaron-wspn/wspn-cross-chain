@@ -61,6 +61,11 @@ library LibErrors {
     error UnauthorizedTokenManagement();
 
     /**
+     * @dev Indicates that the authorization has expired.
+     */
+    error ExpiredAuthorization();
+
+    /**
      * @dev Indicates a failure that a value is not valid.
      */
     error ZeroAmount();

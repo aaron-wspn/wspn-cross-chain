@@ -67,10 +67,12 @@ contract WusdOFTAdapter is
      */
     bytes32 public constant SEND_AUTHORIZATION_TYPEHASH =
         keccak256(
-            "OFTSendAuthorization(address owner,uint256 permitNonce,uint256 deadline,SendParam sendParams,uint256 nonce)SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
+            "OFTSendAuthorization(address authorizer,address sender,SendParam sendParams,uint256 deadline,uint256 nonce)SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
         );
 
-    // Add a constant for the SendParam type hash
+    /**
+     * @notice The typehash for the SendParam struct.
+     */
     bytes32 public constant SEND_PARAM_TYPEHASH =
         keccak256(
             "SendParam(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)"
@@ -79,7 +81,7 @@ contract WusdOFTAdapter is
     // Roles
     /**
      * @notice The Access Control identifier for the Contract Admin Role. These role overarches two purposes:
-     * 
+     *
      * 1. Update the Access Registry.
      * 2. Update the OApp configurations, i.e. those inherited from OApp that are restricted to `onlyOwner`.
      *
@@ -94,6 +96,14 @@ contract WusdOFTAdapter is
      * @dev This constant holds the hash of the string "PAUSER_ROLE".
      */
     bytes32 public constant PAUSER_ROLE = LibRoles.PAUSER_ROLE;
+
+    /**
+     * @notice The Access Control identifier for the Authorizer Role.
+     * An account with "AUTHORIZER_ROLE" can authorize send operations.
+     *
+     * @dev This constant holds the hash of the string "AUTHORIZER_ROLE".
+     */
+    bytes32 public constant AUTHORIZER_ROLE = LibRoles.AUTHORIZER_ROLE;
 
     /**
      * @notice The Access Control identifier for the Salvager Role.
@@ -119,12 +129,7 @@ contract WusdOFTAdapter is
 
     // Events
     event EmbargoLock(address indexed recipient, bytes bError, uint256 amount);
-    event EmbargoRelease(
-        address indexed caller,
-        address indexed embargoedAccount,
-        address indexed _to,
-        uint256 amount
-    );
+    event EmbargoRelease(address indexed caller, address indexed embargoedAccount, address indexed _to, uint256 amount);
 
     /**
      * @dev Constructor for the OFTAdapter contract.
@@ -247,18 +252,22 @@ contract WusdOFTAdapter is
     /**
      * @notice Executes the send operation.
      * @dev Executes the send operation.
+     *
+     * Calling Conditions:
+     * - The contract is not paused. (checked in _requireHasAccess)
+     * - The caller has access according to the `accessRegistry`.
+     *
      * @param _sendParam The parameters for the send operation.
      * @param _fee The calculated fee for the send() operation.
-     *      - nativeFee: The native fee.
-     *      - lzTokenFee: The lzToken fee.
+     *   - nativeFee: The native fee.
+     *   - lzTokenFee: The lzToken fee.
      * @param _refundAddress The address to receive any excess funds.
      * @return msgReceipt The receipt for the send operation.
+     * MessagingReceipt: LayerZero msg receipt
+     *   - guid: The unique identifier for the sent message.
+     *   - nonce: The nonce of the sent message.
+     *   - fee: The LayerZero fee incurred for the message.
      * @return oftReceipt The OFT receipt information.
-     *
-     * @dev MessagingReceipt: LayerZero msg receipt
-     *  - guid: The unique identifier for the sent message.
-     *  - nonce: The nonce of the sent message.
-     *  - fee: The LayerZero fee incurred for the message.
      */
     function send(
         SendParam calldata _sendParam,
@@ -270,30 +279,47 @@ contract WusdOFTAdapter is
     }
 
     /**
-     * @dev Implementation of sendWithAuthorization
-     * @notice This function:
-     * 1. Verifies the permit signature against the token's domain
-     * 2. Verifies the authorization signature against this contract's domain
-     * 3. Executes the permit on the token
-     * 4. Executes the OFT send operation
+     * @notice This function allows any user to send tokens by providing an authorization signature
+     *
+     * @dev The user provides the `OFTSendAuthorization` data (which includes the `SendParam` data). Additionally,
+     * the user provides a EIP-712 signature of the `OFTSendAuthorization` data, which must come from an account
+     * that has currently holds the AUTHORIZER_ROLE.
+     *
+     * Calling Conditions:
+     * - The contract is not paused.
+     * - The account that created the authorization signature:
+     *   - has the `AUTHORIZER_ROLE`, and
+     *   - matches the `authorizer` address listed in the `OFTSendAuthorization` data
+     * - The `sender` address listed in the `OFTSendAuthorization` data matches the caller of this function.
+     * - The deadline has not passed.
+     * - The nonce has not been used.
+     *
+     * @param authorization The `OFTSendAuthorization` data.
+     * @param v The recovery identifier (v), in the context of EIP-712
+     * @param r The r component of the ECDSA signature, representing the first 32 bytes of the signature.
+     * @param s The s component of the ECDSA signature, representing the second 32 bytes of the signature.
+     * @param fee The calculated fee for the send() operation.
+     * @param refundAddress The address to receive any excess funds.
      */
     function sendWithAuthorization(
         OFTSendAuthorization calldata authorization,
-        // Permit signature
-        uint8 permitV,
-        bytes32 permitR,
-        bytes32 permitS,
-        // Authorization signature
         uint8 v,
         bytes32 r,
         bytes32 s,
-        // Other params
         MessagingFee calldata fee,
         address refundAddress
-    ) external payable virtual override returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
-        // Checks
-        _requireHasAccess(_msgSender());
-        require(block.timestamp <= authorization.deadline, "WusdOFTAdapter: expired deadline");
+    )
+        external payable virtual override whenNotPaused
+        returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt)
+    {
+        // Verify deadline
+        require(block.timestamp <= authorization.deadline, LibErrors.ExpiredAuthorization());
+        // Verify sender matches caller
+        require(authorization.sender == _msgSender(), "WusdOFTAdapter: unauthorized sender");
+
+        // Verify authorizer has access
+        _checkRole(AUTHORIZER_ROLE, authorization.authorizer);
+
         // Create EIP-712 struct hash
         bytes32 sendParamsHash = keccak256(
             abi.encode(
@@ -306,36 +332,27 @@ contract WusdOFTAdapter is
                 keccak256(authorization.sendParams.composeMsg),
                 keccak256(authorization.sendParams.oftCmd)
             )
-        ); // First hash the nested SendParam struct
+        );
         bytes32 structHash = keccak256(
             abi.encode(
                 SEND_AUTHORIZATION_TYPEHASH,
-                authorization.owner,
-                authorization.permitNonce,
-                authorization.deadline,
+                authorization.authorizer,
+                authorization.sender,
                 sendParamsHash,
+                authorization.deadline,
                 authorization.nonce
             )
         );
         bytes32 typedDataHash = _hashTypedDataV4(structHash);
+        // Verify signature is from authorizer
         address signer = ECDSA.recover(typedDataHash, v, r, s);
-        require(signer == authorization.owner, "WusdOFTAdapter: invalid authorization");
-        // Checks-Effects
-        _useCheckedNonce(authorization.owner, authorization.nonce);
+        require(signer == authorization.authorizer, "WusdOFTAdapter: invalid authorization");
 
-        // Execute permit on token
-        IERC20F(address(innerToken)).permit(
-            authorization.owner,
-            address(this),
-            authorization.sendParams.amountLD,
-            authorization.deadline,
-            permitV,
-            permitR,
-            permitS
-        );
+        // Checks-Effects
+        _useCheckedNonce(authorization.authorizer, authorization.nonce);
 
         // Execute send
-        return _sendOnBehalf(authorization.owner, authorization.sendParams, fee, refundAddress);
+        return _send(authorization.sendParams, fee, refundAddress);
     }
 
     /**
@@ -369,7 +386,7 @@ contract WusdOFTAdapter is
     }
 
     /**
-     * @notice A function used to withdraw `innerToken` balance currently embargoed by the contract, 
+     * @notice A function used to withdraw `innerToken` balance currently embargoed by the contract,
      * to a specified `_to` address. The entirety of the `embargoed` account's balance is withdrawn.
      * @dev Calling Conditions:
      *
@@ -386,7 +403,7 @@ contract WusdOFTAdapter is
 
     /**
      * @notice A function used to withdraw `innerToken` balance currently embargoed by the contract to
-     * the `embargoed` account. Used in the scenario where the `embargoed` account is now capable/allowed 
+     * the `embargoed` account. Used in the scenario where the `embargoed` account is now capable/allowed
      * to hold a balance of `innerToken`, hence the function has no access control.
      * @dev Calling Conditions:
      *
@@ -411,53 +428,10 @@ contract WusdOFTAdapter is
         (bool embargoExists, uint256 embargoAmount) = _embargoLedger.tryGet(embargoed);
         bool embargoPurged = _embargoLedger.remove(embargoed);
         require(embargoExists && embargoPurged, LibErrors.NoBalance());
-        
+
         emit EmbargoRelease(_msgSender(), embargoed, _to, embargoAmount);
+
         _withdrawERC20(IERC20(address(innerToken)), _to, embargoAmount);
-    }
-
-    /**
-     * @dev Internal function to execute the send operation.
-     * @param tokenSender The address of the owner of the tokens being sent.
-     * @param _sendParam The parameters for the send operation.
-     * @param _fee The calculated fee for the send() operation.
-     *      - nativeFee: The native fee.
-     *      - lzTokenFee: The lzToken fee.
-     * @param _refundAddress The address to receive any excess funds.
-     * @return msgReceipt The receipt for the send operation.
-     * @return oftReceipt The OFT receipt information.
-     *
-     * @dev MessagingReceipt: LayerZero msg receipt
-     *  - guid: The unique identifier for the sent message.
-     *  - nonce: The nonce of the sent message.
-     *  - fee: The LayerZero fee incurred for the message.
-     */
-    function _sendOnBehalf(
-        address tokenSender,
-        SendParam calldata _sendParam,
-        MessagingFee calldata _fee,
-        address _refundAddress
-    ) internal virtual returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
-        // @dev Applies the token transfers regarding this send() operation.
-        // - amountSentLD is the amount in local decimals that was ACTUALLY sent/debited from the sender.
-        // - amountReceivedLD is the amount in local decimals that will be received/credited to the recipient 
-        // on the remote OFT instance.
-        (uint256 amountSentLD, uint256 amountReceivedLD) = _debit(
-            tokenSender,
-            _sendParam.amountLD,
-            _sendParam.minAmountLD,
-            _sendParam.dstEid
-        );
-
-        // @dev Builds the options and OFT message to quote in the endpoint.
-        (bytes memory message, bytes memory options) = _buildMsgAndOptions(_sendParam, amountReceivedLD);
-
-        // @dev Sends the message to the LayerZero endpoint and returns the LayerZero msg receipt.
-        msgReceipt = _lzSend(_sendParam.dstEid, message, options, _fee, _refundAddress);
-        // @dev Formulate the OFT receipt.
-        oftReceipt = OFTReceipt(amountSentLD, amountReceivedLD);
-
-        emit OFTSent(msgReceipt.guid, _sendParam.dstEid, tokenSender, amountSentLD, amountReceivedLD);
     }
 
     /**
@@ -568,9 +542,9 @@ contract WusdOFTAdapter is
 
     /**
      * @notice This is a function that applies any validations required to allow salvageERC20.
-     * 
+     *
      * It adds a check to ensure that the `salvagedToken` is not the same as `innerToken`. The `salvageERC20` function
-     * can't be used to salvage the `innerToken`, as only accounts with `EMBARGO_ROLE` can manage the `innerToken` 
+     * can't be used to salvage the `innerToken`, as only accounts with `EMBARGO_ROLE` can manage the `innerToken`
      * embargoed on this contract.
      *
      * @dev Reverts:
@@ -601,7 +575,7 @@ contract WusdOFTAdapter is
      *
      * @param account The address to check for access.
      */
-    function _requireHasAccess(address account) internal view virtual {
+    function _requireHasAccess(address account) internal view virtual whenNotPaused {
         if (address(accessRegistry) != address(0)) {
             if (!accessRegistry.hasAccess(account, _msgSender(), _msgData())) {
                 revert LibErrors.AccountUnauthorized(account);

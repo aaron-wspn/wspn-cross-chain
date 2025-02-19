@@ -6,38 +6,28 @@ import { SendParam, MessagingFee, MessagingReceipt, OFTReceipt } from "@layerzer
 interface IWusdOFTAdapter {
 
     struct OFTSendAuthorization {
-        // Permit data
-        address owner;
-        // address spender; // assumed to be the adapter
-        // uint256 value;   // embedded in sendParams as amountLD
-        uint256 permitNonce;
-        // Shared data
-        uint256 deadline; // In this design, the deadline must match both the permit and the send authorization
-        // Send parameters
-        SendParam sendParams;
-        uint256 nonce;
+        address authorizer; // The address that signed the authorization
+        address sender; // The address that will be sending the tokens
+        SendParam sendParams; // OFT Send parameters
+        uint256 deadline; // Deadline for the authorization
+        uint256 nonce; // Nonce to prevent replay
     }
 
     function DOMAIN_SEPARATOR() external view returns (bytes32);
-    
+
     function SEND_AUTHORIZATION_TYPEHASH() external view returns (bytes32);
 
-    function nonces(address owner) external view returns (uint256);
+    function nonces(address authorizer) external view returns (uint256);
 
     function sendWithAuthorization(
         OFTSendAuthorization calldata authorization,
-        // Permit signature
-        uint8 permitV,
-        bytes32 permitR,
-        bytes32 permitS,
         // Authorization signature
         uint8 v,
         bytes32 r,
         bytes32 s,
-        // Other params
+        // Other Send params
         MessagingFee calldata fee,
         address refundAddress
     ) external payable returns (MessagingReceipt memory, OFTReceipt memory);
 
-    // ... other events and functions
-} 
+}
