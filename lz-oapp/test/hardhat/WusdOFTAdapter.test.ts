@@ -48,7 +48,7 @@ describe('WusdOFTAdapter Integration Test', function () {
     let contractAdminAdapterA: SignerWithAddress
     let contractAdminAdapterB: SignerWithAddress
     let tokenHolder: SignerWithAddress
-    let bridgeOperatorA: SignerWithAddress
+    let authorizer: SignerWithAddress
     let tokenA: IERC20F
     let tokenB: IERC20F
     let wusdOftAdapterA: WusdOFTAdapter
@@ -73,7 +73,7 @@ describe('WusdOFTAdapter Integration Test', function () {
             contractAdminAdapterA,
             contractAdminAdapterB,
             tokenHolder,
-            bridgeOperatorA,
+            authorizer,
         ] = signers
 
         // Deploy two ERC20F instances
@@ -120,10 +120,10 @@ describe('WusdOFTAdapter Integration Test', function () {
         // See https://github.com/NomicFoundation/hardhat/issues/1040
         const EndpointV2MockArtifact = await deployments.getArtifact('EndpointV2Mock')
         EndpointV2Mock = new ContractFactory(EndpointV2MockArtifact.abi, EndpointV2MockArtifact.bytecode, endpointOwner)
-        // Deploying a mock LZEndpoint with the given Endpoint ID
+        // Deploying mock LZEndpoints
         mockEndpointV2A = await EndpointV2Mock.deploy(eidA)
         mockEndpointV2B = await EndpointV2Mock.deploy(eidB)
-        // Deploying two instances of WusdOFTAdapter contract with different identifiers
+        // Deploying WusdOFTAdapter instances
         wusdOftAdapterA = (await WusdOFTAdapter.deploy(
             erc20fA.address,
             mockEndpointV2A.address,
@@ -136,6 +136,7 @@ describe('WusdOFTAdapter Integration Test', function () {
             defaultAdminAdapterB.address,
             contractAdminAdapterB.address
         )) as WusdOFTAdapter
+
         tokenA = new ethers.Contract(erc20fA.address, ERC20F_ABI, deployer) as IERC20F
         tokenB = new ethers.Contract(erc20fB.address, ERC20F_ABI, deployer) as IERC20F
         wusdOftAdapterA = await wusdOftAdapterA.deployed()
@@ -151,11 +152,11 @@ describe('WusdOFTAdapter Integration Test', function () {
 
     it(`1. Sets the destination endpoints (Hardhat EndpointV2Mock only)
         2. Sets the AccessRegistry mock to WusdAdapter A
-        3. Adds bridgeOperatorA to the AccessRegistry allowlist
+        3. Grants AUTHORIZER_ROLE to authorizer
         4. Wires the Adapters to each other
         5. Grants Minter and Burner roles on the Tokens to the Adapters
-        6. Establishes a sender allowlist for the WusdAdapter on chain A
-        7. Mints tokens to the tokenHolder
+        6. Mints tokens to the tokenHolder
+        7. TokenHolder approves tokens for the OFTAdapter
         8. Sends a token from A address to B address via OFTAdapter/OFT
         `, async function () {
         // Setting destination endpoints in the LZEndpoint mock for each Adapter instance (Hardhat EndpointV2Mock only)
@@ -163,19 +164,15 @@ describe('WusdOFTAdapter Integration Test', function () {
         await mockEndpointV2B.setDestLzEndpoint(wusdOftAdapterA.address, mockEndpointV2A.address)
 
         // Set access registry on WusdAdapter A
+        await wusdOftAdapterA.connect(contractAdminAdapterA).accessRegistryUpdate(accessRegistryA.address)
+
+        // Grant AUTHORIZER_ROLE to authorizer on both Adapters
         await wusdOftAdapterA
             .connect(defaultAdminAdapterA)
-            .grantRole(await wusdOftAdapterA.CONTRACT_ADMIN_ROLE(), defaultAdminAdapterA.address)
-        await wusdOftAdapterA.connect(defaultAdminAdapterA).accessRegistryUpdate(accessRegistryA.address)
-
-        // Add bridgeOperatorA to the access registry allowlist
-        await accessRegistryA.setAccess(bridgeOperatorA.address, true)
-
-        // Grant Minter and Burner roles on the Tokens to the Adapters
-        await tokenA.connect(superAdminTokenA).grantRole(await tokenA.MINTER_ROLE(), wusdOftAdapterA.address)
-        await tokenA.connect(superAdminTokenA).grantRole(await tokenA.BURNER_ROLE(), wusdOftAdapterA.address)
-        await tokenB.connect(superAdminTokenB).grantRole(await tokenB.MINTER_ROLE(), wusdOftAdapterB.address)
-        await tokenB.connect(superAdminTokenB).grantRole(await tokenB.BURNER_ROLE(), wusdOftAdapterB.address)
+            .grantRole(await wusdOftAdapterA.AUTHORIZER_ROLE(), authorizer.address)
+        await wusdOftAdapterB
+            .connect(defaultAdminAdapterB)
+            .grantRole(await wusdOftAdapterB.AUTHORIZER_ROLE(), authorizer.address)
 
         // Wire the Adapters to each other, by setting each Adapter instance as a peer of the other in the LZEndpoint,
         // using superAdmin (who has CONTRACT_ADMIN_ROLE)
@@ -186,7 +183,12 @@ describe('WusdOFTAdapter Integration Test', function () {
             .connect(contractAdminAdapterB)
             .setPeer(eidA, ethers.utils.zeroPad(wusdOftAdapterA.address, 32))
 
-        // Mint tokens to the tokenHolder
+        // Grant Minter and Burner roles on the Tokens to the Adapters
+        await tokenA.connect(superAdminTokenA).grantRole(await tokenA.MINTER_ROLE(), wusdOftAdapterA.address)
+        await tokenA.connect(superAdminTokenA).grantRole(await tokenA.BURNER_ROLE(), wusdOftAdapterA.address)
+        await tokenB.connect(superAdminTokenB).grantRole(await tokenB.MINTER_ROLE(), wusdOftAdapterB.address)
+        await tokenB.connect(superAdminTokenB).grantRole(await tokenB.BURNER_ROLE(), wusdOftAdapterB.address)
+        // Mint tokens to tokenHolder
         const decimals = await tokenA.decimals()
         const tokenAmountA = initialBalance.mul(ethers.BigNumber.from(10).pow(decimals))
         await tokenA.connect(superAdminTokenA).mint(tokenHolder.address, tokenAmountA)
@@ -197,18 +199,21 @@ describe('WusdOFTAdapter Integration Test', function () {
         expect(await tokenA.hasRole(await tokenA.BURNER_ROLE(), wusdOftAdapterA.address)).to.be.true
         expect(await tokenB.hasRole(await tokenB.MINTER_ROLE(), wusdOftAdapterB.address)).to.be.true
         expect(await tokenB.hasRole(await tokenB.BURNER_ROLE(), wusdOftAdapterB.address)).to.be.true
-        expect(await accessRegistryA.hasAccess(bridgeOperatorA.address, ethers.constants.AddressZero, '0x')).to.be.true
+        // authorizer does not need to be in the allowlist
+        expect(await accessRegistryA.hasAccess(authorizer.address, ethers.constants.AddressZero, '0x')).to.be.false
         expect(await accessRegistryA.hasAccess(tokenHolder.address, ethers.constants.AddressZero, '0x')).to.be.false
+        // authorizer does need to have the AUTHORIZER_ROLE
+        expect(await wusdOftAdapterA.hasRole(await wusdOftAdapterA.AUTHORIZER_ROLE(), authorizer.address)).to.be.true
         expect(await tokenA.balanceOf(tokenHolder.address)).to.equal(tokenAmountA)
-        expect(await tokenB.balanceOf(tokenHolder.address)).to.equal(ethers.BigNumber.from(0))
-        expect(await tokenA.balanceOf(bridgeOperatorA.address)).to.equal(ethers.BigNumber.from(0))
-        expect(await tokenB.balanceOf(bridgeOperatorA.address)).to.equal(ethers.BigNumber.from(0))
-        expect(await tokenA.balanceOf(wusdOftAdapterA.address)).to.equal(ethers.BigNumber.from(0))
-        expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(ethers.BigNumber.from(0))
+        expect(await tokenB.balanceOf(tokenHolder.address)).to.equal(0)
+        expect(await tokenA.balanceOf(authorizer.address)).to.equal(0)
+        expect(await tokenB.balanceOf(authorizer.address)).to.equal(0)
+        expect(await tokenA.balanceOf(wusdOftAdapterA.address)).to.equal(0)
+        expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(0)
 
         // Bridging actions
         const tokensToSend = tokenAmountA
-        const deadline = Math.floor(Date.now() / 1000) + 60 * 5 // 5 minutes from now
+        const deadline = Math.floor(Date.now() / 1000) + 60 * 15 // 15 minutes from now
 
         // 1st element: Gas limit for the executor,
         // 2nd element: msg.value for the lzReceive() function on destination in wei
@@ -224,42 +229,13 @@ describe('WusdOFTAdapter Integration Test', function () {
             oftCmd: '0x',
         }
 
-        // Generate permit signature
-        const permitDomain = {
-            name: await tokenA.name(),
-            version: '1',
-            chainId: (await ethers.provider.getNetwork()).chainId,
-            verifyingContract: tokenA.address,
-        }
-
-        const permitTypes = {
-            Permit: [
-                { name: 'owner', type: 'address' },
-                { name: 'spender', type: 'address' },
-                { name: 'value', type: 'uint256' },
-                { name: 'nonce', type: 'uint256' },
-                { name: 'deadline', type: 'uint256' },
-            ],
-        }
-
-        const permitValues = {
-            owner: tokenHolder.address,
-            spender: wusdOftAdapterA.address,
-            value: tokensToSend,
-            nonce: await tokenA.nonces(tokenHolder.address),
-            deadline: deadline,
-        }
-
-        const permitSignature = await tokenHolder._signTypedData(permitDomain, permitTypes, permitValues)
-        const permitSplit = ethers.utils.splitSignature(permitSignature)
-
         // Create Authorization
         const authorization: IWusdOFTAdapter.OFTSendAuthorizationStruct = {
-            owner: permitValues.owner,
-            permitNonce: permitValues.nonce,
-            deadline: deadline,
+            authorizer: authorizer.address,
+            sender: tokenHolder.address,
             sendParams: sendParam,
-            nonce: await wusdOftAdapterA.nonces(tokenHolder.address),
+            deadline: deadline,
+            nonce: await wusdOftAdapterA.nonces(authorizer.address),
         }
 
         // Generate send authorization signature using ethers
@@ -272,10 +248,10 @@ describe('WusdOFTAdapter Integration Test', function () {
 
         const authTypes = {
             OFTSendAuthorization: [
-                { name: 'owner', type: 'address' },
-                { name: 'permitNonce', type: 'uint256' },
-                { name: 'deadline', type: 'uint256' },
+                { name: 'authorizer', type: 'address' },
+                { name: 'sender', type: 'address' },
                 { name: 'sendParams', type: 'SendParam' },
+                { name: 'deadline', type: 'uint256' },
                 { name: 'nonce', type: 'uint256' },
             ],
             SendParam: [
@@ -295,30 +271,36 @@ describe('WusdOFTAdapter Integration Test', function () {
         // const ethersHash = _TypedDataEncoder.hash(authDomain, authTypes, authorization)
         // console.log('Ethers hash:', ethersHash)
 
-        // Use the modified values for signing
-        const authSignature = await tokenHolder._signTypedData(authDomain, authTypes, authorization)
+        // Use the types and values for signing
+        const authSignature = await authorizer._signTypedData(authDomain, authTypes, authorization)
         const authSplit = ethers.utils.splitSignature(authSignature)
 
         // Get messaging fee
         const messagingFee = await wusdOftAdapterA.quoteSend(sendParam, false)
 
-        // Execute sendWithAuthorization from bridgeOperatorA
+        // Approve tokens
+        await tokenA.connect(tokenHolder).approve(wusdOftAdapterA.address, tokensToSend)
+
+        // Initial balance checks
+        expect(await tokenA.balanceOf(tokenHolder.address)).to.equal(tokensToSend)
+        expect(await tokenB.balanceOf(tokenHolder.address)).to.equal(0)
+
+        // Execute sendWithAuthorization
         await wusdOftAdapterA
-            .connect(bridgeOperatorA)
+            .connect(tokenHolder)
             .sendWithAuthorization(
                 authorization,
-                permitSplit.v,
-                permitSplit.r,
-                permitSplit.s,
                 authSplit.v,
                 authSplit.r,
                 authSplit.s,
                 messagingFee,
-                bridgeOperatorA.address,
-                { value: messagingFee.nativeFee }
+                tokenHolder.address,
+                {
+                    value: messagingFee.nativeFee,
+                }
             )
 
-        // Verify the transfer was successful
+        // Calculate expected tokens on chain B (considering decimal conversion)
         const decimalConversionRate = ethers.BigNumber.from(10).pow(
             (await tokenA.decimals()) - (await tokenB.decimals())
         )
@@ -329,10 +311,10 @@ describe('WusdOFTAdapter Integration Test', function () {
         expect(await tokenB.balanceOf(tokenHolder.address)).to.equal(expectedTokensOnB)
         expect(await tokenA.balanceOf(wusdOftAdapterA.address)).to.equal(0) // Tokens are burned
         expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(0) // Tokens are minted and sent to recipient
-        expect(await tokenA.balanceOf(bridgeOperatorA.address)).to.equal(0)
-        expect(await tokenB.balanceOf(bridgeOperatorA.address)).to.equal(0)
+        expect(await tokenA.balanceOf(authorizer.address)).to.equal(0)
+        expect(await tokenB.balanceOf(authorizer.address)).to.equal(0)
         // Verify nonces were incremented
-        expect(await wusdOftAdapterA.nonces(tokenHolder.address)).to.equal(1)
-        expect(await wusdOftAdapterA.nonces(bridgeOperatorA.address)).to.equal(0)
+        expect(await wusdOftAdapterA.nonces(tokenHolder.address)).to.equal(0)
+        expect(await wusdOftAdapterA.nonces(authorizer.address)).to.equal(1)
     })
 })

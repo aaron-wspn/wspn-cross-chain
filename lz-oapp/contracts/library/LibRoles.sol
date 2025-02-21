@@ -29,6 +29,9 @@ library LibRoles {
     // Role that can pause the contract
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
+    // Role that can authorize send operations
+    bytes32 public constant AUTHORIZER_ROLE = keccak256("AUTHORIZER_ROLE");
+
     // Role that can salvage tokens and gas
     bytes32 public constant SALVAGE_ROLE = keccak256("SALVAGE_ROLE");
 
