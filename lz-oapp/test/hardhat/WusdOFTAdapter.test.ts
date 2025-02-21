@@ -156,17 +156,19 @@ describe('WusdOFTAdapter Integration Test', function () {
         4. Wires the Adapters to each other
         5. Grants Minter and Burner roles on the Tokens to the Adapters
         6. Mints tokens to the tokenHolder
-        7. TokenHolder approves tokens for the OFTAdapter
-        8. Sends a token from A address to B address via OFTAdapter/OFT
+        7. Approves (TokenHolder) tokens for the OFTAdapter
+        8. Signs (Authorizer) an authorization to send tokens
+        9. Gets the messaging fee
+        10. Sends (TokenHolder) tokens B address via OFTAdapter, bound to the authorization received
         `, async function () {
-        // Setting destination endpoints in the LZEndpoint mock for each Adapter instance (Hardhat EndpointV2Mock only)
+        // 1. Setting destination endpoints in the LZEndpoint mock for each Adapter instance (Hardhat EndpointV2Mock only)
         await mockEndpointV2A.setDestLzEndpoint(wusdOftAdapterB.address, mockEndpointV2B.address)
         await mockEndpointV2B.setDestLzEndpoint(wusdOftAdapterA.address, mockEndpointV2A.address)
 
-        // Set access registry on WusdAdapter A
+        // 2. Set access registry on WusdAdapter A
         await wusdOftAdapterA.connect(contractAdminAdapterA).accessRegistryUpdate(accessRegistryA.address)
 
-        // Grant AUTHORIZER_ROLE to authorizer on both Adapters
+        // 3. Grant AUTHORIZER_ROLE to authorizer on both Adapters
         await wusdOftAdapterA
             .connect(defaultAdminAdapterA)
             .grantRole(await wusdOftAdapterA.AUTHORIZER_ROLE(), authorizer.address)
@@ -174,7 +176,7 @@ describe('WusdOFTAdapter Integration Test', function () {
             .connect(defaultAdminAdapterB)
             .grantRole(await wusdOftAdapterB.AUTHORIZER_ROLE(), authorizer.address)
 
-        // Wire the Adapters to each other, by setting each Adapter instance as a peer of the other in the LZEndpoint,
+        // 4. Wire the Adapters to each other, by setting each Adapter instance as a peer of the other in the LZEndpoint,
         // using superAdmin (who has CONTRACT_ADMIN_ROLE)
         await wusdOftAdapterA
             .connect(contractAdminAdapterA)
@@ -183,12 +185,13 @@ describe('WusdOFTAdapter Integration Test', function () {
             .connect(contractAdminAdapterB)
             .setPeer(eidA, ethers.utils.zeroPad(wusdOftAdapterA.address, 32))
 
-        // Grant Minter and Burner roles on the Tokens to the Adapters
+        // 5. Grant Minter and Burner roles on the Tokens to the Adapters
         await tokenA.connect(superAdminTokenA).grantRole(await tokenA.MINTER_ROLE(), wusdOftAdapterA.address)
         await tokenA.connect(superAdminTokenA).grantRole(await tokenA.BURNER_ROLE(), wusdOftAdapterA.address)
         await tokenB.connect(superAdminTokenB).grantRole(await tokenB.MINTER_ROLE(), wusdOftAdapterB.address)
         await tokenB.connect(superAdminTokenB).grantRole(await tokenB.BURNER_ROLE(), wusdOftAdapterB.address)
-        // Mint tokens to tokenHolder
+
+        // 6. Mint tokens to tokenHolder
         const decimals = await tokenA.decimals()
         const tokenAmountA = initialBalance.mul(ethers.BigNumber.from(10).pow(decimals))
         await tokenA.connect(superAdminTokenA).mint(tokenHolder.address, tokenAmountA)
@@ -211,10 +214,13 @@ describe('WusdOFTAdapter Integration Test', function () {
         expect(await tokenA.balanceOf(wusdOftAdapterA.address)).to.equal(0)
         expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(0)
 
-        // Bridging actions
+        // Bridging variables
         const tokensToSend = tokenAmountA
-        const deadline = Math.floor(Date.now() / 1000) + 60 * 15 // 15 minutes from now
+        // 7. Approve tokens
+        await tokenA.connect(tokenHolder).approve(wusdOftAdapterA.address, tokensToSend)
 
+        // Constructing the SendParam
+        const deadline = Math.floor(Date.now() / 1000) + 60 * 15 // 15 minutes from now
         // 1st element: Gas limit for the executor,
         // 2nd element: msg.value for the lzReceive() function on destination in wei
         const options = Options.newOptions().addExecutorLzReceiveOption(300000, 0).toHex().toString()
@@ -228,7 +234,6 @@ describe('WusdOFTAdapter Integration Test', function () {
             composeMsg: '0x',
             oftCmd: '0x',
         }
-
         // Create Authorization
         const authorization: IWusdOFTAdapter.OFTSendAuthorizationStruct = {
             authorizer: authorizer.address,
@@ -237,7 +242,6 @@ describe('WusdOFTAdapter Integration Test', function () {
             deadline: deadline,
             nonce: await wusdOftAdapterA.nonces(authorizer.address),
         }
-
         // Generate send authorization signature using ethers
         const authDomain = {
             name: 'WusdOFTAdapter',
@@ -245,7 +249,6 @@ describe('WusdOFTAdapter Integration Test', function () {
             chainId: (await ethers.provider.getNetwork()).chainId,
             verifyingContract: wusdOftAdapterA.address,
         }
-
         const authTypes = {
             OFTSendAuthorization: [
                 { name: 'authorizer', type: 'address' },
@@ -271,21 +274,18 @@ describe('WusdOFTAdapter Integration Test', function () {
         // const ethersHash = _TypedDataEncoder.hash(authDomain, authTypes, authorization)
         // console.log('Ethers hash:', ethersHash)
 
-        // Use the types and values for signing
+        // 8. Use the types and values for signing the authorization
         const authSignature = await authorizer._signTypedData(authDomain, authTypes, authorization)
         const authSplit = ethers.utils.splitSignature(authSignature)
 
-        // Get messaging fee
+        // 9. Get messaging fee
         const messagingFee = await wusdOftAdapterA.quoteSend(sendParam, false)
-
-        // Approve tokens
-        await tokenA.connect(tokenHolder).approve(wusdOftAdapterA.address, tokensToSend)
 
         // Initial balance checks
         expect(await tokenA.balanceOf(tokenHolder.address)).to.equal(tokensToSend)
         expect(await tokenB.balanceOf(tokenHolder.address)).to.equal(0)
 
-        // Execute sendWithAuthorization
+        // 10. Execute sendWithAuthorization
         await wusdOftAdapterA
             .connect(tokenHolder)
             .sendWithAuthorization(
