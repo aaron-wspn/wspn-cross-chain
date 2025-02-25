@@ -86,7 +86,7 @@ const config: HardhatUserConfig = {
         // },
         'holesky-testnet': {
             eid: EndpointId.HOLESKY_V2_TESTNET,
-            url: process.env.RPC_URL_HOLESKY || 'https://1rpc.io/holesky',
+            url: process.env.RPC_URL_HOLESKY || 'https://ethereum-holesky-rpc.publicnode.com',
             accounts,
             oftAdapter: {
                 tokenAddress: '0xDdCb87d9CAdB7a030f35cD890Be49F7554473638', // Set the token address for the OFT adapter

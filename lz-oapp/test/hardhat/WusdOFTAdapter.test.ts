@@ -235,12 +235,13 @@ describe('WusdOFTAdapter Integration Test', function () {
             oftCmd: '0x',
         }
         // Create Authorization
+        const nonceKey = await wusdOftAdapterA.addressToNonceKey(tokenHolder.address)
         const authorization: IWusdOFTAdapter.OFTSendAuthorizationStruct = {
             authorizer: authorizer.address,
             sender: tokenHolder.address,
             sendParams: sendParam,
             deadline: deadline,
-            nonce: await wusdOftAdapterA.nonces(authorizer.address),
+            nonce: await wusdOftAdapterA['nonces(address,uint192)'](authorizer.address, nonceKey),
         }
         // Generate send authorization signature using ethers
         const authDomain = {
@@ -313,8 +314,8 @@ describe('WusdOFTAdapter Integration Test', function () {
         expect(await tokenB.balanceOf(wusdOftAdapterB.address)).to.equal(0) // Tokens are minted and sent to recipient
         expect(await tokenA.balanceOf(authorizer.address)).to.equal(0)
         expect(await tokenB.balanceOf(authorizer.address)).to.equal(0)
-        // Verify nonces were incremented
-        expect(await wusdOftAdapterA.nonces(tokenHolder.address)).to.equal(0)
-        expect(await wusdOftAdapterA.nonces(authorizer.address)).to.equal(1)
+        // Verify correct nonces were incremented
+        expect(await wusdOftAdapterA['nonces(address,uint192)'](tokenHolder.address, nonceKey)).to.equal(0)
+        expect(await wusdOftAdapterA['nonces(address,uint192)'](authorizer.address, nonceKey)).to.equal(1)
     })
 })

@@ -142,7 +142,7 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
                 sender: _sender,
                 sendParams: _sendParam,
                 deadline: _deadline,
-                nonce: aOFTAdapter.nonces(_authorizer)
+                nonce: uint64(aOFTAdapter.nonces(_authorizer, uint192(uint160(_sender))))
             });
     }
 
@@ -415,8 +415,8 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         _verifyBalances(userA, initialBalance - tokensToSend, tokensToReceive);
         _verifyBalances(authorizer, 0, 0);
         // Verify nonce updates
-        assertEq(aOFTAdapter.nonces(userA), 0);
-        assertEq(aOFTAdapter.nonces(authorizer), 1);
+        assertEq(aOFTAdapter.nonces(userA, uint192(uint160(userA))), 0);
+        assertEq(aOFTAdapter.nonces(authorizer, uint192(uint160(userA))), 1);
     }
 
     function test_sendWithAuthorizationToAnotherUser() public {
@@ -452,9 +452,9 @@ contract WusdOFTAdapterTest is TestHelperOz5 {
         _verifyBalances(authorizer, 0, 0);
 
         // Nonce checks
-        assertEq(aOFTAdapter.nonces(userA), 0);
-        assertEq(aOFTAdapter.nonces(authorizer), 1);
-        assertEq(aOFTAdapter.nonces(userB), 0);
+        assertEq(aOFTAdapter.nonces(userA, uint192(uint160(userA))), 0);
+        assertEq(aOFTAdapter.nonces(authorizer, uint192(uint160(userA))), 1);
+        assertEq(aOFTAdapter.nonces(userB, uint192(uint160(userB))), 0);
     }
 
     function test_RevertIf_SendWithAuthorizationWhilePaused() public {

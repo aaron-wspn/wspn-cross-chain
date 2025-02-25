@@ -23,7 +23,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
+import { NoncesKeyed } from "@openzeppelin/contracts/utils/NoncesKeyed.sol";
 import { OFTCore } from "@layerzerolabs/oft-evm/contracts/OFTCore.sol";
 import { IOFT, SendParam, OFTReceipt, MessagingReceipt, MessagingFee } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import { IERC20F } from "./interfaces/IERC20F.sol";
@@ -51,7 +51,7 @@ contract WusdOFTAdapter is
     IWusdOFTAdapter,
     OFTCore,
     EIP712,
-    Nonces,
+    NoncesKeyed,
     AccessRegistrySubscriptionCapable,
     RoleBasedOwnable,
     PauseCapable,
@@ -181,9 +181,20 @@ contract WusdOFTAdapter is
      *
      * Every successful call to {sendWithAuthorization} increases ``owner``'s nonce by one. This
      * prevents a signature from being used multiple times.
+     * 
+     * NOTE: This override DOES NOT return the full key-and-nonce, like the parent contract {NoncesKeyed} does,
+     * but only the nonce.
+     * 
+     * @param owner The address of the owner (i.e. an authorizer) to get the nonce for.
+     * @param key The key to get the nonce for. It is an `uint192` representation of the `sender` address.
+     * @return nonce Returns the next unused nonce for an address and key.
      */
-    function nonces(address owner) public view virtual override(IWusdOFTAdapter, Nonces) returns (uint256) {
-        return super.nonces(owner);
+    function nonces(address owner, uint192 key) public view virtual override(IWusdOFTAdapter, NoncesKeyed) returns (uint256) {
+        uint256 keyAndNonce = super.nonces(owner, key);
+        // This line extracts the nonce portion from keyAndNonce. In NoncesKeyed.sol, the nonce is stored
+        // in the lower 64 bits of the uint256, while the key is stored in the upper 192 bits.
+        // We use a bitmask to isolate the nonce portion and discard the key portion.
+        return keyAndNonce & 0xFFFFFFFFFFFFFFFF;
     }
 
     /**
@@ -349,7 +360,7 @@ contract WusdOFTAdapter is
         require(signer == authorization.authorizer, "WusdOFTAdapter: invalid authorization");
 
         // Checks-Effects
-        _useCheckedNonce(authorization.authorizer, authorization.nonce);
+        _useCheckedNonce(authorization.authorizer, addressToNonceKey(authorization.sender), authorization.nonce);
 
         // Execute send
         return _send(authorization.sendParams, fee, refundAddress);
@@ -414,6 +425,16 @@ contract WusdOFTAdapter is
      */
     function releaseEmbargo(address embargoed) external {
         _recoverEmbargo(embargoed, embargoed);
+    }
+
+    /**
+     * @dev Converts an address into a nonce key by casting it to uint192.
+     * Since an Ethereum address is 20 bytes (160 bits), it fits within uint192 (24 bytes/192 bits).
+     * @param addr The address to convert into a nonce key
+     * @return key The uint192 nonce key derived from the address
+     */
+    function addressToNonceKey(address addr) public pure returns (uint192) {
+        return uint192(uint160(addr));
     }
 
     /**
