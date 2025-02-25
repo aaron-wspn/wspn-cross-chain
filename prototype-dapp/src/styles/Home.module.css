@@ -1,0 +1,278 @@
+.container {
+  padding: 0 2rem;
+}
+
+.main {
+  min-height: 100vh;
+  padding: 4rem 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* justify-content: center; */
+  align-items: center;
+}
+
+.title {
+  margin: 0 0 2rem;
+  line-height: 1;
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #0d76fc;
+}
+
+.bridgeContainer {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.bridgeCard {
+  width: 100%;
+  padding: 2rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #eaeaea;
+}
+
+.networkInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.networkBox {
+  flex: 1;
+  text-align: center;
+  
+  p.current {
+    padding-top: 0.6rem;
+    padding-bottom: 0.5rem;
+  }
+}
+
+.networkBox h3 {
+  margin: 0 0 0.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.networkBox p {
+  margin: 0;
+  font-weight: bold;
+  color: #333;
+}
+
+.arrow {
+  margin: 0 1rem;
+  /* padding-top: 0.5rem; */
+  color: #0d76fc;
+  font-size: 1.5rem;
+}
+
+.select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.select:focus {
+  border-color: #0d76fc;
+}
+
+.bridgeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.inputGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.input:focus {
+  border-color: #0d76fc;
+}
+
+.tokenSymbol {
+  position: absolute;
+  right: 2rem;
+  color: #666;
+}
+
+.bridgeButton {
+  padding: 1rem;
+  background: #0d76fc;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.bridgeButton:hover {
+  background: #0b5ed7;
+}
+
+.description {
+  text-align: center;
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.footer {
+  display: flex;
+  padding: 2rem 0;
+  border-top: 1px solid #eaeaea;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+.footer a {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #666;
+}
+
+.balanceInfo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.balance {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0.5rem 0 0 0;
+}
+
+.maxButton {
+  background: none;
+  border: 1px solid #0d76fc;
+  color: #0d76fc;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.maxButton:hover {
+  background: #0d76fc;
+  color: white;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 0 1rem;
+  }
+  
+  .bridgeCard {
+    padding: 1rem;
+  }
+  
+  .networkInfo {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .arrow {
+    transform: rotate(90deg);
+  }
+}
+
+.authButton {
+  padding: 1rem;
+  background: white;
+  color: #0d76fc;
+  border: 1px solid #0d76fc;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.authButton:hover:not(:disabled) {
+  background: #f0f7ff;
+}
+
+.authButton:disabled {
+  border-color: #ccc;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.loadingSpinner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.loadingSpinner::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid #0d76fc;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.responseCard, .callDataCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.responseCard h3, .callDataCard h3 {
+  margin: 0 0 0.5rem;
+  color: #333;
+  font-size: 1rem;
+}
+
+.responseCard pre {
+  background: #fff;
+  padding: 0.5rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.875rem;
+}
+
+.callDataCard p {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+}
