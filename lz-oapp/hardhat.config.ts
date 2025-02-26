@@ -14,6 +14,8 @@ import '@layerzerolabs/toolbox-hardhat'
 import '@nomicfoundation/hardhat-chai-matchers'
 import { HardhatUserConfig, HttpNetworkAccountsUserConfig } from 'hardhat/types'
 import 'solidity-coverage'
+import '@fireblocks/hardhat-fireblocks'
+import { FireblocksProviderConfig } from '@fireblocks/fireblocks-web3-provider'
 
 import { EndpointId } from '@layerzerolabs/lz-definitions'
 
@@ -30,13 +32,22 @@ const MNEMONIC = process.env.MNEMONIC
 // If you prefer to be authenticated using a private key, set a PRIVATE_KEY environment variable
 const PRIVATE_KEY = process.env.PRIVATE_KEY
 
+if (process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS) {
+    console.info('Using Fireblocks accounts to operate')
+}
+const fireblocksProviderGlobalConfig: FireblocksProviderConfig = {
+    privateKey: process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH!,
+    apiKey: process.env.FIREBLOCKS_API_KEY!,
+    vaultAccountIds: process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS,
+}
+
 const accounts: HttpNetworkAccountsUserConfig | undefined = MNEMONIC
     ? { mnemonic: MNEMONIC }
     : PRIVATE_KEY
       ? [PRIVATE_KEY]
       : undefined
 
-if (accounts == null) {
+if (accounts == null || !process.env.FIREBLOCKS_API_KEY) {
     console.warn(
         'Could not find MNEMONIC or PRIVATE_KEY environment variables. It will not be possible to execute transactions in your example.'
     )
@@ -95,7 +106,8 @@ const config: HardhatUserConfig = {
         'sepolia-testnet': {
             eid: EndpointId.SEPOLIA_V2_TESTNET,
             url: process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.public.blastapi.io',
-            accounts,
+            // accounts,
+            fireblocks: fireblocksProviderGlobalConfig,
             oftAdapter: {
                 tokenAddress: '0xaF16E77FbF7Ca7649387124E7d4061c7e95206A1', // Set the token address for the OFT adapter
             },
@@ -103,7 +115,12 @@ const config: HardhatUserConfig = {
     },
     namedAccounts: {
         deployer: {
-            default: 0, // wallet address of index[0], of the mnemonic in .env
+            // default: 0, // wallet address of index[0] in fireblocks vault account list
+            default: process.env.DEPLOYER_ADDRESS || 0,
+        },
+        tokenDefaultAdmin: {
+            // default: 1, // wallet address of index[1] in fireblocks vault account list
+            default: process.env.TOKEN_DEFAULT_ADMIN_ADDRESS || 1,
         },
     },
     mocha: {
