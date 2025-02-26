@@ -30,10 +30,10 @@
 
 #### Installing dependencies
 
-We recommend using `pnpm` as a package manager (but you can of course use a package manager of your choice):
+We recommend using `yarn` as a package manager (but you can of course use a package manager of your choice):
 
 ```bash
-pnpm install
+yarn install
 ```
 
 #### Compiling your contracts
@@ -41,14 +41,14 @@ pnpm install
 This project supports both `hardhat` and `forge` compilation. By default, the `compile` command will execute both:
 
 ```bash
-pnpm compile
+yarn compile
 ```
 
 If you prefer one over the other, you can use the tooling-specific commands:
 
 ```bash
-pnpm compile:forge
-pnpm compile:hardhat
+yarn compile:forge
+yarn compile:hardhat
 ```
 
 Or adjust the `package.json` to for example remove `forge` build:
@@ -65,14 +65,14 @@ Or adjust the `package.json` to for example remove `forge` build:
 Similarly to the contract compilation, we support both `hardhat` and `forge` tests. By default, the `test` command will execute both:
 
 ```bash
-pnpm test
+yarn test
 ```
 
 If you prefer one over the other, you can use the tooling-specific commands:
 
 ```bash
-pnpm test:forge
-pnpm test:hardhat
+yarn test:forge
+yarn test:hardhat
 ```
 
 Or adjust the `package.json` to for example remove `hardhat` tests:
