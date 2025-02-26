@@ -1,0 +1,29 @@
+{
+  "name": "skeleton-dapp",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@fireblocks/ts-sdk": "^8.0.1",
+    "@layerzerolabs/devtools": "^0.4.6",
+    "@layerzerolabs/lz-definitions": "^3.0.70",
+    "@layerzerolabs/lz-v2-utilities": "^3.0.70",
+    "@rainbow-me/rainbowkit": "^2.2.3",
+    "@tanstack/react-query": "^5.55.3",
+    "abitype": "^1.0.8",
+    "next": "^15.1.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "2.21.55",
+    "wagmi": "^2.14.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.8",
+    "@types/react": "^19.0.6",
+    "typescript": "5.5.2"
+  }
+}
