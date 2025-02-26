@@ -15,7 +15,7 @@ const deploy: DeployFunction = async (hre) => {
     const { deploy } = deployments
     // const { deployer } = await getNamedAccounts()
     const accounts = await getNamedAccounts()
-    const { deployer } = accounts
+    const { deployer, tokenDefaultAdmin } = accounts
     const signers = await hre.ethers.getSigners()
 
     assert(deployer, 'Missing named deployer account')
@@ -75,7 +75,7 @@ const deploy: DeployFunction = async (hre) => {
     const decimals = await tokenContract.decimals()
     console.log(`Token Name: ${name}`)
     console.log(`Decimals: ${decimals}`)
-    tokenContract = tokenContract.connect(hre.ethers.provider.getSigner(deployer))
+    tokenContract = tokenContract.connect(hre.ethers.provider.getSigner(tokenDefaultAdmin))
 
     console.log(`Deployed contract: ${contractName}, network: ${hre.network.name}, address: ${address}`)
     console.log(`Granting required roles (Minter, Burner) on ${name} to Adapter...`)
